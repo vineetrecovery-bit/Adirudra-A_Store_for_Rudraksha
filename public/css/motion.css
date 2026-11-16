@@ -1,0 +1,143 @@
+/* Motion layer: opening intro, entrance animations, scroll reveals, product hover details.
+   Animations only run when js/motion.js adds .motion to <html>, which it skips for prefers-reduced-motion. */
+
+:root {
+  --ease-out: cubic-bezier(.2, .7, .2, 1);
+  --ease-curtain: cubic-bezier(.77, 0, .18, 1);
+}
+
+/* ---------- Opening intro ---------- */
+/* Cover the page from the very first paint, before the intro element exists. */
+html.intro-play::before { content: ''; position: fixed; inset: 0; z-index: 999; background: var(--dark); }
+html.intro-play body { overflow: hidden; }
+
+.intro { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; background: var(--dark); color: var(--on-dark); cursor: pointer; transition: transform .95s var(--ease-curtain); }
+.intro.is-leaving { transform: translateY(-100%); }
+.intro__inner { display: flex; flex-direction: column; align-items: center; gap: 18px; transition: opacity .4s, transform .6s var(--ease-out); }
+.intro.is-leaving .intro__inner { opacity: 0; transform: translateY(-30px); }
+.intro__logo { width: 86px; height: 86px; }
+.intro__logo path { fill: none; stroke: var(--gold); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: intro-draw 1.3s var(--ease-out) forwards; }
+.intro__logo path:nth-child(2) { animation-delay: .25s; }
+.intro__word { display: flex; gap: .02em; font-family: var(--serif); font-size: clamp(34px, 6vw, 56px); font-weight: 500; letter-spacing: .22em; padding-left: .22em; overflow: hidden; }
+.intro__word span { display: inline-block; opacity: 0; transform: translateY(100%); animation: intro-letter .8s var(--ease-out) forwards; animation-delay: calc(.55s + var(--i) * 55ms); }
+.intro__tag { margin: 0; font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); opacity: 0; animation: intro-fade .8s ease forwards 1.15s; }
+.intro__bar { width: 140px; height: 1px; background: var(--dark-line); position: relative; overflow: hidden; margin-top: 6px; }
+.intro__bar::after { content: ''; position: absolute; inset: 0; background: var(--gold); transform: scaleX(0); transform-origin: left; animation: intro-bar 1.8s var(--ease-out) forwards .2s; }
+.intro__skip { position: absolute; bottom: 26px; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--on-dark-faint); opacity: 0; animation: intro-fade .6s ease forwards .9s; }
+
+@keyframes intro-draw { to { stroke-dashoffset: 0; } }
+@keyframes intro-letter { to { opacity: 1; transform: none; } }
+@keyframes intro-fade { to { opacity: 1; } }
+@keyframes intro-bar { to { transform: scaleX(1); } }
+
+/* ---------- Hero entrance ---------- */
+.motion .hero__image { transform: scale(1.14); transform-origin: 70% 50%; }
+.motion.is-ready .hero__image { transform: scale(1); transition: transform 2.8s var(--ease-out); }
+.motion .hero__shade { opacity: .4; }
+.motion.is-ready .hero__shade { opacity: 1; transition: opacity 1.6s ease; }
+
+.motion .hero__content > :not(h1) { opacity: 0; transform: translateY(26px); }
+.motion.is-ready .hero__content > :not(h1) { animation: rise .9s var(--ease-out) forwards; }
+.motion.is-ready .hero__eyebrow { animation-delay: .1s !important; }
+.motion.is-ready .hero__lead { animation-delay: .75s !important; }
+.motion.is-ready .hero__actions { animation-delay: .9s !important; }
+
+/* Headline: each word slides up from behind a mask. */
+.hero h1 .w { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .08em; margin-bottom: -.08em; }
+.hero h1 .w > span { display: inline-block; }
+.motion .hero h1 .w > span { transform: translateY(105%); }
+.motion.is-ready .hero h1 .w > span { animation: word-up 1s var(--ease-out) forwards; animation-delay: calc(.25s + var(--i) * 90ms); }
+
+@keyframes rise { to { opacity: 1; transform: none; } }
+@keyframes word-up { to { transform: none; } }
+
+/* ---------- Scroll reveal ---------- */
+.motion [data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity .8s ease, transform .9s var(--ease-out); transition-delay: var(--reveal-delay, 0ms); }
+.motion [data-reveal].is-in { opacity: 1; transform: none; }
+
+/* ---------- Header on scroll ---------- */
+.site-header { transition: box-shadow .3s, background-color .3s; }
+.is-scrolled .site-header { box-shadow: 0 6px 24px var(--shadow); }
+
+/* Cart badge pop when something is added */
+.cart-count.bump { animation: bump .5s var(--ease-out); }
+@keyframes bump { 0% { transform: scale(1); } 35% { transform: scale(1.45); } 100% { transform: scale(1); } }
+
+/* ---------- Small hover touches ---------- */
+.button span[aria-hidden="true"] { display: inline-block; transition: transform .25s var(--ease-out); }
+.button:hover span[aria-hidden="true"] { transform: translateX(4px); }
+.category-tile:before { transition: transform .7s var(--ease-out), border-color .3s; }
+.category-tile:hover:before { transform: scale(1.35); border-color: var(--bronze); }
+.category-tile span { transition: letter-spacing .3s var(--ease-out); }
+.category-tile:hover span { letter-spacing: .04em; }
+
+/* ---------- Product card: hover details ---------- */
+.product-card { transition: border-color .3s, box-shadow .4s, translate .4s var(--ease-out); }
+.product-card__visual img, .product-card__visual .placeholder { transition: transform .9s var(--ease-out), filter .6s; }
+.product-card .badge { transition: opacity .25s; }
+
+.product-card__details {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 10px;
+  padding: 20px 22px;
+  color: var(--on-dark);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--dark) 18%, transparent) 0%, color-mix(in srgb, var(--dark) 86%, transparent) 34%, color-mix(in srgb, var(--dark) 96%, transparent) 100%);
+  opacity: 0; visibility: hidden;
+  pointer-events: none; /* clicks fall through to the product link underneath */
+  transition: opacity .35s ease, visibility 0s linear .35s;
+}
+.product-card__details > * { opacity: 0; transform: translateY(14px); transition: opacity .4s ease, transform .5s var(--ease-out); }
+.product-card__details-kicker { margin: 0; font-size: 10px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); }
+.product-card__desc { margin: 0; font-size: 13px; line-height: 1.55; color: var(--on-dark-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.product-card__specs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; margin: 2px 0 0; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--on-dark) 15%, transparent); }
+.product-card__specs dt { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--on-dark-faint); }
+.product-card__specs dd { margin: 1px 0 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.product-card__details-foot { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--on-dark) 15%, transparent); color: var(--on-dark-muted); }
+.product-card__details-foot span:last-child { color: var(--gold-soft); font-weight: 600; }
+.product-card__details-foot .is-low { color: #f2b48a; font-weight: 600; }
+
+/* Shown on hover (mouse), keyboard focus, or when opened with the "+" button. */
+.product-card.is-open .product-card__details,
+.product-card:has(.product-card__link:focus-visible) .product-card__details { opacity: 1; visibility: visible; transition: opacity .35s ease, visibility 0s; }
+.product-card.is-open .product-card__details > *,
+.product-card:has(.product-card__link:focus-visible) .product-card__details > * { opacity: 1; transform: none; }
+.product-card.is-open .badge { opacity: 0; }
+
+@media (hover: hover) and (pointer: fine) {
+  .product-card:hover { translate: 0 -4px; box-shadow: 0 18px 40px color-mix(in srgb, var(--dark) 12%, transparent); }
+  .product-card:hover .product-card__details { opacity: 1; visibility: visible; transition: opacity .35s ease, visibility 0s; }
+  .product-card:hover .product-card__details > * { opacity: 1; transform: none; }
+  .product-card:hover .product-card__visual img,
+  .product-card:hover .product-card__visual .placeholder { transform: scale(1.07); filter: saturate(.9); }
+  .product-card:hover .badge { opacity: 0; }
+}
+/* Stagger the panel's contents. */
+.product-card__details > :nth-child(1) { transition-delay: .05s; }
+.product-card__details > :nth-child(2) { transition-delay: .1s; }
+.product-card__details > :nth-child(3) { transition-delay: .15s; }
+.product-card__details > :nth-child(4) { transition-delay: .2s; }
+
+/* Touch screens: a "+" button opens the details. */
+.product-card__info {
+  position: absolute; top: 12px; right: 12px; z-index: 3;
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid var(--ring); background: color-mix(in srgb, var(--surface) 92%, transparent); color: var(--walnut);
+  display: grid; place-items: center; font-size: 20px; line-height: 1; padding: 0;
+  transition: transform .3s var(--ease-out), background-color .2s, color .2s;
+}
+.product-card.is-open .product-card__info { transform: rotate(45deg); background: var(--walnut); color: var(--on-primary); border-color: var(--walnut); }
+
+/* ---------- Reduced motion: no movement, details still available ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .product-card, .product-card__details, .product-card__details > *, .product-card__visual img, .product-card__visual .placeholder { transition-duration: .01ms !important; transition-delay: 0s !important; }
+  .product-card:hover { translate: none; }
+  .product-card__details > * { transform: none; }
+}
+
+/* Keep the headline hidden until it's split into words, so it never flashes unanimated. */
+.motion:not(.is-ready) .hero h1 { visibility: hidden; }
+
+/* Mouse users get the hover panel, so the touch "+" button is hidden for them. */
+@media (hover: hover) and (pointer: fine) {
+  .product-card__info { display: none; }
+}

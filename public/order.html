@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Your order — Adirudra</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/motion.css">
+  <script src="js/motion.js"></script>
+</head>
+<body data-page="order">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="site-header"></div>
+  <main id="main"><div class="shell confirm" id="orderRoot"><p class="muted">Loading your order…</p></div></main>
+  <div id="site-footer"></div>
+  <script src="js/site.js"></script>
+  <script src="js/store.js"></script>
+  <script>
+    Store.onReady(async () => {
+      const { api, money, esc, $, ICONS, MyOrders } = Store;
+      // Editable text from Admin > Website > Order confirmation page.
+      const T = (key, vars) => esc(Site.t(`pages.order.${key}`, vars));
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id') || '';
+      const token = params.get('token') || (MyOrders.all().find((o) => o.id === id) || {}).token || '';
+      const root = $('#orderRoot');
+
+      const notFound = () => {
+        root.innerHTML = `<h1 class="page-title">${T('notFoundTitle')}</h1><p class="muted">${T('notFoundText')}</p><div class="confirm__actions" style="margin-top:24px"><a class="button button--dark" href="shop.html">Continue shopping</a></div>`;
+      };
+
+      async function load() {
+        let order;
+        try { order = await api(`/orders/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}`); }
+        catch (err) { if (err.status === 404) return notFound(); root.innerHTML = `<p class="muted">${esc(err.message)}</p>`; return; }
+        render(order);
+      }
+
+      function render(order) {
+        const c = order.customer;
+        const unpaidOnline = order.payment === 'upi' && order.paymentStatus === 'unpaid' && order.status !== 'cancelled';
+        const vars = { name: c.name.split(' ')[0], email: c.email, phone: c.phone, total: money(order.total) };
+        const headline = T(order.status === 'cancelled' ? 'cancelledTitle' : unpaidOnline ? 'reservedTitle' : 'placedTitle');
+        const next = T(order.status === 'cancelled' ? 'cancelledText'
+          : order.paymentStatus === 'paid' ? 'paidText'
+          : order.payment === 'cod' ? 'codText'
+          : order.payment === 'whatsapp' ? 'whatsappText'
+          : order.razorpay ? 'payNowText' : 'payLinkText', vars);
+        const statusText = { pending: 'Pending', confirmed: 'Confirmed', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled' }[order.status] || order.status;
+
+        root.innerHTML = `
+          <div class="confirm__mark">${ICONS.check}</div>
+          <p class="kicker">${T('thanks', vars)}</p>
+          <h1 class="page-title">${headline}</h1>
+          <p class="muted" style="font-size:15px">${next}</p>
+          ${order.razorpay ? `<p style="margin-top:20px"><button class="button button--dark" type="button" id="payNow">Pay ${money(order.total)} now</button></p>` : ''}
+          <div class="order-box">
+            <div class="order-box__head">
+              <span>Order <strong>${esc(order.id)}</strong> · ${esc(statusText)}</span>
+              <span class="muted">${new Date(order.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+            </div>
+            ${order.items.map((i) => `<div class="summary-row"><span>${esc(i.name)} × ${i.qty}</span><span>${money(i.total)}</span></div>`).join('')}
+            ${order.discount ? `<div class="summary-row"><span>Discount (${esc(order.coupon)})</span><span class="discount">−${money(order.discount)}</span></div>` : ''}
+            <div class="summary-row"><span>Shipping</span><span>${order.shipping ? money(order.shipping) : 'Free'}</span></div>
+            ${order.codFee ? `<div class="summary-row"><span>COD fee</span><span>${money(order.codFee)}</span></div>` : ''}
+            <div class="summary-row summary-row--total"><span>Total</span><span>${money(order.total)}</span></div>
+            <p class="muted" style="margin:16px 0 0;font-size:13px"><strong style="color:var(--ink)">Delivering to</strong><br>${esc(c.name)}, ${esc(c.address)}, ${esc(c.city)}, ${esc(c.state)} ${esc(c.pincode)}</p>
+          </div>
+          <div class="confirm__actions"><a class="button button--dark" href="shop.html">Continue shopping</a><a class="button button--outline" href="index.html">Back to home</a></div>`;
+
+        const payBtn = $('#payNow');
+        if (payBtn) payBtn.addEventListener('click', async () => {
+          payBtn.disabled = true;
+          try { await Store.payWithRazorpay({ orderId: order.id, token, razorpay: order.razorpay, customer: c }); }
+          catch (err) { Store.toast(err.message, false); }
+          load();
+        });
+      }
+
+      if (!id || !token) return notFound();
+      load();
+    });
+  </script>
+</body>
+</html>

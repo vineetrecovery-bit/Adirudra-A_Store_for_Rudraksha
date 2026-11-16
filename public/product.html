@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product — Adirudra</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/motion.css">
+  <script src="js/motion.js"></script>
+</head>
+<body data-page="product">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="site-header"></div>
+
+  <main id="main">
+    <div class="shell page-head" style="padding-bottom:20px">
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="index.html">Home</a> / <a href="shop.html">Shop</a> / <span id="crumb"></span></nav>
+    </div>
+    <div class="shell" id="pdp"></div>
+
+    <section class="shell section" style="padding-top:0" aria-labelledby="relHeading" id="relatedSection">
+      <div class="section-heading"><div><p class="kicker" data-site="pages.product.relatedKicker">You may also like</p><h2 id="relHeading" data-site="pages.product.relatedTitle">Related pieces</h2></div></div>
+      <div class="product-grid" id="related"></div>
+    </section>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="js/site.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/product.js"></script>
+</body>
+</html>

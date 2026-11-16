@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Admin — Adirudra</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin">
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="40" height="40"><span>ADIRUDRA</span></a>
+      <span class="admin-tag">Admin</span>
+      <nav class="admin-tabs" id="tabs" hidden aria-label="Admin sections">
+        <button type="button" data-tab="orders" aria-current="page">Orders</button>
+        <button type="button" data-tab="products">Products</button>
+        <button type="button" data-tab="site">Website</button>
+        <button type="button" data-tab="settings">Settings</button>
+      </nav>
+      <div class="header-actions" style="margin-left:auto">
+        <a class="text-link" href="index.html" target="_blank" rel="noopener">View store ↗</a>
+        <button class="button button--outline" type="button" id="logoutBtn" hidden style="min-height:38px;margin-left:16px">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="shell admin-main">
+    <!-- Login -->
+    <section id="loginView" hidden>
+      <form class="login-card" id="loginForm">
+        <p class="kicker">Store admin</p>
+        <h1 class="page-title" style="font-size:44px">Sign in</h1>
+        <div class="field"><label for="password">Password</label><input class="input" id="password" type="password" autocomplete="current-password" required></div>
+        <p class="field__error" id="loginError" role="alert"></p>
+        <button class="button button--dark button--block" type="submit">Sign in</button>
+      </form>
+    </section>
+
+    <!-- Orders -->
+    <section id="ordersView" hidden>
+      <div class="admin-head">
+        <h1 class="page-title">Orders</h1>
+        <div class="admin-filters">
+          <input class="input" id="orderSearch" type="search" placeholder="Search order, name, phone…" aria-label="Search orders">
+          <select class="select" id="statusFilter" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="table-wrap"><table class="admin-table" id="ordersTable"></table></div>
+    </section>
+
+    <!-- Products -->
+    <section id="productsView" hidden>
+      <div class="admin-head">
+        <h1 class="page-title">Products</h1>
+        <button class="button button--dark" type="button" id="addProductBtn">+ Add product</button>
+      </div>
+      <div class="table-wrap"><table class="admin-table" id="productsTable"></table></div>
+    </section>
+
+    <!-- Store settings -->
+    <section id="settingsView" hidden>
+      <form id="settingsForm" novalidate>
+        <div class="admin-head">
+          <h1 class="page-title">Settings</h1>
+          <div class="settings-actions">
+            <span class="ed-status" id="setStatus" role="status"></span>
+            <button class="button button--dark" type="submit" id="setSave" disabled>Save settings</button>
+          </div>
+        </div>
+        <p class="field__error" id="settingsError" role="alert"></p>
+
+        <div class="settings-card">
+          <h2>Shipping &amp; fees</h2>
+          <div class="form-grid">
+            <div class="field"><label for="sFree">Free shipping on orders over (₹)</label><input class="input" id="sFree" name="freeShippingOver" type="number" min="0" step="1"><small class="muted">Set 0 to always ship free.</small><span class="field__error"></span></div>
+            <div class="field"><label for="sShip">Shipping fee below that (₹)</label><input class="input" id="sShip" name="shippingFee" type="number" min="0" step="1"><span class="field__error"></span></div>
+            <div class="field"><label for="sCod">Cash on delivery fee (₹)</label><input class="input" id="sCod" name="codFee" type="number" min="0" step="1"><small class="muted">Set 0 for no fee.</small><span class="field__error"></span></div>
+            <div class="field"><label for="sMax">Max quantity per product in one order</label><input class="input" id="sMax" name="maxQtyPerItem" type="number" min="1" max="100" step="1"><span class="field__error"></span></div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <h2>Contact details</h2>
+          <div class="form-grid">
+            <div class="field"><label for="sWa">WhatsApp number</label><input class="input" id="sWa" name="whatsappNumber" inputmode="tel" placeholder="91 98765 43210"><small class="muted">Used for WhatsApp orders and the "WhatsApp us" link. Include the country code.</small><span class="field__error"></span></div>
+            <div class="field"><label for="sEmail">Store email</label><input class="input" id="sEmail" name="email" type="email" placeholder="hello@adirudra.com"><small class="muted">Shown in the footer.</small><span class="field__error"></span></div>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <div class="admin-head" style="margin-bottom:14px"><h2>Coupon codes</h2><button class="button button--outline" type="button" id="addCoupon">+ Add coupon</button></div>
+          <div class="table-wrap"><table class="admin-table" id="couponsTable"></table></div>
+          <p class="muted" style="font-size:12px;margin-top:10px">Customers type the code in their cart. Untick "Active" to pause a code without deleting it. Leave the description blank to generate one.</p>
+        </div>
+      </form>
+      <p class="muted" style="font-size:12px">Text on the website that mentions these amounts (e.g. "Free shipping over ₹999" in the trust badges or FAQ) is edited separately under <strong>Website</strong>.</p>
+    </section>
+
+    <!-- Website editor -->
+    <section id="siteView" class="ed" hidden aria-label="Website editor">
+      <div class="ed-side">
+        <div class="ed-toolbar">
+          <span class="ed-status" id="edStatus" role="status">All changes published</span>
+          <button class="button button--outline ed-small" type="button" id="edDiscard" disabled>Discard</button>
+          <button class="button button--dark ed-small" type="button" id="edPublish" disabled>Publish</button>
+        </div>
+        <div class="ed-panel" id="edPanel"></div>
+      </div>
+      <div class="ed-stage">
+        <div class="ed-stagebar">
+          <label class="ed-pagepick">Preview
+            <select class="select" id="edPage">
+              <option value="/?preview=1">Home page</option>
+              <option value="/shop.html?preview=1">Shop</option>
+              <option value="/product.html?id=AR-001&amp;preview=1" data-product>Product page</option>
+              <option value="/cart.html?preview=1">Cart</option>
+              <option value="/checkout.html?preview=1">Checkout</option>
+              <option value="/404?preview=1">Page not found (404)</option>
+            </select>
+          </label>
+          <div class="ed-devices" role="group" aria-label="Preview size">
+            <button type="button" data-device="desktop" aria-pressed="true">Desktop</button>
+            <button type="button" data-device="mobile" aria-pressed="false">Mobile</button>
+          </div>
+          <button class="text-link" type="button" id="edOpen">Open live site ↗</button>
+        </div>
+        <div class="ed-frame-wrap" id="edFrameWrap" data-device="desktop">
+          <iframe id="edPreview" title="Website preview"></iframe>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Order detail -->
+  <dialog class="admin-dialog" id="orderDialog" aria-labelledby="orderDialogTitle"></dialog>
+
+  <!-- Product add / edit -->
+  <dialog class="admin-dialog" id="productDialog" aria-labelledby="productDialogTitle">
+    <form id="productForm" method="dialog" novalidate>
+      <div class="dialog-head"><h2 id="productDialogTitle">Add product</h2><button class="icon-close" type="button" data-close aria-label="Close">×</button></div>
+      <div class="form-grid">
+        <div class="field full"><label for="pName">Name</label><input class="input" id="pName" name="name" required><span class="field__error"></span></div>
+        <div class="field"><label for="pPrice">Price (₹)</label><input class="input" id="pPrice" name="price" type="number" min="1" required><span class="field__error"></span></div>
+        <div class="field"><label for="pStock">Stock</label><input class="input" id="pStock" name="stock" type="number" min="0" required><span class="field__error"></span></div>
+        <div class="field"><label for="pType">Type</label><select class="select" id="pType" name="type"><option>Loose Bead</option><option>Mala</option><option>Bracelet</option><option>Pendant</option></select><span class="field__error"></span></div>
+        <div class="field"><label for="pMukhi">Mukhi</label><input class="input" id="pMukhi" name="mukhi" type="number" min="1" max="30" required><span class="field__error"></span></div>
+        <div class="field"><label for="pOrigin">Origin</label><input class="input" id="pOrigin" name="origin" placeholder="Nepal"><span class="field__error"></span></div>
+        <div class="field"><label for="pRarity">Rarity</label><select class="select" id="pRarity" name="rarity"><option>Common</option><option>Uncommon</option><option>Rare</option><option>Extremely Rare</option></select><span class="field__error"></span></div>
+        <div class="field"><label for="pSize">Size</label><input class="input" id="pSize" name="size" placeholder="18–20 MM"><span class="field__error"></span></div>
+        <div class="field"><label for="pWeight">Weight</label><input class="input" id="pWeight" name="weight" placeholder="8.2 G"><span class="field__error"></span></div>
+        <div class="field"><label for="pVerification">Verification ID</label><input class="input" id="pVerification" name="verification"><span class="field__error"></span></div>
+        <div class="field"><label for="pImage">Photo</label><div style="display:flex;gap:8px"><input class="input" id="pImage" name="image" placeholder="Upload or paste an https:// link"><label class="button button--outline" style="min-height:46px;cursor:pointer;white-space:nowrap">Upload<input type="file" id="pImageFile" accept="image/jpeg,image/png,image/webp,image/gif" hidden></label></div><span class="field__error"></span></div>
+        <div class="field full"><label for="pDesc">Description</label><textarea class="textarea" id="pDesc" name="description" rows="4"></textarea><span class="field__error"></span></div>
+        <div class="field full"><label for="pKeywords">Search keywords (comma separated)</label><input class="input" id="pKeywords" name="keywords"><span class="field__error"></span></div>
+        <div class="full check-row">
+          <label class="check"><input type="checkbox" name="featured"> Featured</label>
+          <label class="check"><input type="checkbox" name="certified" checked> Lab certified</label>
+          <label class="check"><input type="checkbox" name="active" checked> Visible in store</label>
+        </div>
+      </div>
+      <p class="field__error" id="productFormError" role="alert"></p>
+      <div class="dialog-actions">
+        <button class="button button--outline" type="button" data-close>Cancel</button>
+        <button class="button button--dark" type="submit" id="productSave">Save product</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/admin-site.js"></script>
+  <script src="js/admin-settings.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

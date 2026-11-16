@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shop Rudraksha — Adirudra</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/motion.css">
+  <script src="js/motion.js"></script>
+</head>
+<body data-page="shop">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="site-header"></div>
+
+  <main id="main">
+    <div class="shell page-head">
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="index.html">Home</a> / <span id="crumb">Shop</span></nav>
+      <h1 class="page-title" id="shopTitle">The collection</h1>
+      <p class="section-intro" data-site="pages.shop.intro">Authentic Rudraksha beads, malas, bracelets and pendants — every piece certified.</p>
+    </div>
+
+    <div class="shell shop-layout">
+      <aside class="filters" id="filters" aria-label="Filters">
+        <div class="field">
+          <label for="q">Search</label>
+          <input class="input" id="q" type="search" placeholder="Mukhi, origin, keyword…" data-site-placeholder="pages.shop.searchPlaceholder">
+        </div>
+        <div class="filter-group"><h3>Type</h3><div id="fType"></div></div>
+        <div class="filter-group"><h3>Origin</h3><div id="fOrigin"></div></div>
+        <div class="filter-group"><h3>Rarity</h3><div id="fRarity"></div></div>
+        <div class="filter-group">
+          <h3>Price (₹)</h3>
+          <div class="range-row">
+            <input class="input" id="minPrice" type="number" min="0" inputmode="numeric" placeholder="Min" aria-label="Minimum price">
+            <span>–</span>
+            <input class="input" id="maxPrice" type="number" min="0" inputmode="numeric" placeholder="Max" aria-label="Maximum price">
+          </div>
+        </div>
+        <button class="text-link" type="button" id="reset" style="align-self:flex-start">Clear all filters</button>
+      </aside>
+
+      <section aria-label="Products">
+        <div class="toolbar">
+          <p class="result-count" id="count" aria-live="polite"></p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="button button--outline filter-toggle" type="button" id="filterToggle" aria-expanded="false" aria-controls="filters" style="min-height:46px">Filters</button>
+            <select class="select" id="sort" aria-label="Sort products">
+              <option value="featured">Sort: Featured</option>
+              <option value="price-asc">Price: low to high</option>
+              <option value="price-desc">Price: high to low</option>
+              <option value="mukhi">Mukhi: low to high</option>
+              <option value="name">Name: A–Z</option>
+            </select>
+          </div>
+        </div>
+        <div class="product-grid" id="grid"></div>
+      </section>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="js/site.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/shop.js"></script>
+</body>
+</html>
