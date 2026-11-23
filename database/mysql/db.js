@@ -1,8 +1,7 @@
-// MySQL / MariaDB driver for the 4 tables: user_groups, users, products, orders.
+// MySQL / MariaDB driver for the 5 tables: user_groups, users, products, orders, settings.
 // Creates the tables on first start (see schema.sql) and fills in the starting catalogue.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import mysql from 'mysql2/promise';
 import { GROUPS, groupId, groupName, normalizeProduct, normalizeUser, normalizeOrder } from '../shapes.js';
 import { nowIst, toIst, IST_OFFSET } from '../time.js';
 
@@ -87,18 +86,22 @@ const updateSql = (table, cols) => `UPDATE ${table} SET ${cols.slice(1).map((c) 
 const updateArgs = (row) => [...row.slice(1), row[0]];
 
 export function createMysqlDb(options, { seedProducts }) {
-  const pool = mysql.createPool({
-    host: options.host, port: options.port, user: options.user, password: options.password, database: options.database,
-    ssl: options.ssl ? { rejectUnauthorized: true } : undefined,
-    // Dates are written and read as Indian time, so phpMyAdmin shows IST.
-    connectionLimit: options.connectionLimit || 5, charset: 'utf8mb4', timezone: IST_OFFSET, multipleStatements: false
-  });
-  // NOW() / CURRENT_TIMESTAMP on the server use IST too (a fixed offset needs no time zone tables).
-  pool.pool.on('connection', (conn) => { conn.query(`SET time_zone = '${IST_OFFSET}'`); });
+  let pool = null; // created in load(), so a missing mysql2 package is reported as a startup error
   const q = async (sql, args = []) => (await pool.execute(sql, args))[0];
   const one = async (sql, args) => (await q(sql, args))[0] ?? null;
 
   async function load() {
+    if (pool) { await pool.end().catch(() => {}); pool = null; } // retrying after a failed start
+    const { default: mysql } = await import('mysql2/promise');
+    pool = mysql.createPool({
+      host: options.host, port: options.port, user: options.user, password: options.password, database: options.database,
+      ssl: options.ssl ? { rejectUnauthorized: true } : undefined,
+      // Dates are written and read as Indian time, so phpMyAdmin shows IST.
+      connectionLimit: options.connectionLimit || 5, charset: 'utf8mb4', timezone: IST_OFFSET, multipleStatements: false
+    });
+    // NOW() / CURRENT_TIMESTAMP on the server use IST too (a fixed offset needs no time zone tables).
+    pool.pool.on('connection', (conn) => { conn.query(`SET time_zone = '${IST_OFFSET}'`); });
+
     // Run each CREATE TABLE / INSERT IGNORE from schema.sql (statements end with ";" on a line end).
     const statements = (await readFile(SCHEMA, 'utf8'))
       .split('\n').filter((l) => !l.trim().startsWith('--')).join('\n')
@@ -114,7 +117,7 @@ export function createMysqlDb(options, { seedProducts }) {
   return {
     driver: 'mysql',
     load,
-    close: () => pool.end(),
+    close: async () => { if (pool) await pool.end(); },
 
     groups: {
       list: async () => (await q('SELECT id, name, description FROM user_groups ORDER BY id')).map((r) => ({ ...r }))
