@@ -23,7 +23,8 @@
       body: body ? JSON.stringify(body) : undefined
     });
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401 && path !== '/login') { showLogin(); throw new Error('Session expired. Please sign in again.'); }
+    if (res.status === 401) { showLogin(); throw new Error('Session expired. Please sign in again.'); }
+    if (res.status === 403) { showLogin(data.error); throw new Error(data.error); }
     if (!res.ok) { const e = new Error(data.error || 'Request failed.'); e.fields = data.fields; throw e; }
     return data;
   }
@@ -37,19 +38,45 @@
   }
 
   // ---------- Views ----------
-  function showLogin() {
+  function showLogin(message = '') {
     $('#loginView').hidden = false;
-    $('#ordersView').hidden = $('#productsView').hidden = $('#siteView').hidden = $('#settingsView').hidden = $('#tabs').hidden = $('#logoutBtn').hidden = true;
+    TABS.forEach((t) => { $(`#${t}View`).hidden = true; });
+    $('#tabs').hidden = $('#logoutBtn').hidden = true;
     document.body.classList.remove('is-editing-site');
-    $('#password').focus();
+    $('#loginError').textContent = message;
+    ($('#phone').value ? $('#password') : $('#phone')).focus();
   }
 
-  const TABS = ['orders', 'products', 'site', 'settings'];
+  const TABS = ['orders', 'products', 'customers', 'site', 'settings'];
+
+  // ---------- Customers ----------
+  let customers = [];
+  async function loadCustomers() { customers = await api('/users'); renderCustomers(); }
+  function renderCustomers() {
+    const users = customers.filter((u) => u.role === 'user');
+    const weekAgo = Date.now() - 7 * 86400 * 1000;
+    $('#customerStats').innerHTML = [
+      ['Customers', users.length],
+      ['New this week', users.filter((u) => Date.parse(u.createdAt) > weekAgo).length],
+      ['Have ordered', users.filter((u) => u.orders > 0).length],
+      ['Admin accounts', customers.length - users.length]
+    ].map(([k, v]) => `<div class="stat"><span>${k}</span><strong>${v}</strong></div>`).join('');
+    const q = $('#customerSearch').value.trim().toLowerCase();
+    const list = customers.filter((u) => !q || `${u.name} ${u.phone}`.toLowerCase().includes(q));
+    $('#customersTable').innerHTML = `<thead><tr><th>Name</th><th>Mobile</th><th>Group</th><th>Joined</th><th class="num">Orders</th></tr></thead>
+      <tbody>${list.length ? list.map((u) => `<tr>
+        <td>${esc(u.name)}</td>
+        <td><a href="tel:+91${esc(u.phone)}">+91 ${esc(u.phone)}</a></td>
+        <td>${u.role === 'admin' ? '<strong>Admin</strong>' : 'Customer'}</td>
+        <td>${new Date(u.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+        <td class="num">${u.orders}</td>
+      </tr>`).join('') : '<tr><td colspan="5" class="muted">No customers yet.</td></tr>'}</tbody>`;
+  }
 
   async function showApp() {
     $('#loginView').hidden = true;
     $('#tabs').hidden = $('#logoutBtn').hidden = false;
-    await Promise.all([loadOrders(), loadProducts()]);
+    await Promise.all([loadOrders(), loadProducts(), loadCustomers()]);
     const fromHash = location.hash.slice(1);
     switchTab(TABS.includes(fromHash) ? fromHash : 'orders');
   }
@@ -232,10 +259,24 @@
     $('#loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       $('#loginError').textContent = '';
-      try { await api('/login', { method: 'POST', body: { password: $('#password').value } }); $('#password').value = ''; showApp(); }
-      catch (err) { $('#loginError').textContent = err.message; }
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: $('#phone').value, password: $('#password').value })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Sign-in failed.');
+        $('#password').value = '';
+        if (data.user.role !== 'admin') {
+          // A customer account can't open the admin panel; sign it out again here.
+          await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+          throw new Error('This account does not have admin access.');
+        }
+        showApp();
+      } catch (err) { $('#loginError').textContent = err.message; }
     });
-    $('#logoutBtn').addEventListener('click', async () => { await api('/logout', { method: 'POST' }).catch(() => {}); showLogin(); });
+    $('#logoutBtn').addEventListener('click', async () => { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {}); showLogin(); });
+    $('#customerSearch').addEventListener('input', renderCustomers);
     $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) switchTab(b.dataset.tab); });
 
     $('#orderSearch').addEventListener('input', renderOrders);
@@ -271,8 +312,9 @@
 
     try {
       const me = await fetch('/api/admin/me', { credentials: 'same-origin' }).then((r) => r.json());
-      if (!me.enabled) { showLogin(); $('#loginError').textContent = 'Admin is disabled. Set ADMIN_PASSWORD in your .env file and restart the server.'; return; }
-      me.admin ? showApp() : showLogin();
+      if (!me.enabled) { showLogin('No admin account is set up. Set ADMIN_PHONE and ADMIN_PASSWORD in your .env file and restart the server.'); return; }
+      if (me.admin) showApp();
+      else showLogin(me.signedIn ? 'You are signed in with a customer account. Sign in with the admin account to continue.' : '');
     } catch { showLogin(); $('#loginError').textContent = 'Could not reach the server.'; }
   });
 })();

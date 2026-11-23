@@ -382,3 +382,30 @@ h1, h2, h3 { line-height: 1.05; }
 /* ---------- Announcement bar ---------- */
 .announcement { background: var(--walnut); color: var(--on-primary); text-align: center; font-size: 12px; font-weight: 500; letter-spacing: .04em; padding: 9px var(--gutter); }
 .announcement a { color: inherit; text-underline-offset: 3px; }
+
+/* ---------- Accounts: sign in / sign up, My account ---------- */
+.auth-card { max-width: 440px; margin: clamp(36px, 6vw, 72px) auto 90px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(24px, 5vw, 38px); }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); margin: 0 0 26px; }
+.auth-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 12px 6px; font: inherit; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.auth-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--bronze); }
+.auth-card__title { font-family: var(--serif); font-size: clamp(32px, 4vw, 40px); font-weight: 500; letter-spacing: -.02em; margin-bottom: 6px; }
+.auth-card__intro { font-size: 14px; margin-bottom: 22px; }
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.auth-form small { font-size: 12px; }
+
+.account-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: clamp(24px, 4vw, 48px); align-items: start; padding-bottom: 100px; }
+.account-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px; display: flex; flex-direction: column; gap: 10px; }
+.account-card .kicker { margin-bottom: 0; }
+.account-card__name { font-family: var(--serif); font-size: 28px; line-height: 1.15; overflow-wrap: anywhere; }
+.account-card .muted { margin-bottom: 8px; }
+.account-section-title { font-family: var(--serif); font-size: 30px; font-weight: 500; margin-bottom: 16px; }
+.account-orders { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.account-order { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
+.account-order__head, .account-order__foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.account-order__id { font-weight: 600; color: var(--ink); text-decoration: none; }
+.account-order__id:hover { color: var(--bronze); }
+.account-order .muted { font-size: 13px; overflow-wrap: anywhere; }
+.account-order__status { font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--bronze) 12%, transparent); color: var(--bronze); }
+.account-order__status--delivered, .account-order__status--confirmed, .account-order__status--shipped { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.account-order__status--cancelled { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+@media (max-width: 760px) { .account-layout { grid-template-columns: 1fr; } }

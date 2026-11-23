@@ -76,6 +76,12 @@
 
   Store.onReady(() => {
     if (!Cart.items().length && !isPreview) { showEmpty(); return; }
+    // Orders need an account: sign in (or sign up) first, then come straight back here.
+    if (!Store.user && !isPreview) { location.replace(Store.Auth.loginUrl('checkout.html')); return; }
+    if (Store.user) {
+      if (!$('#name').value) $('#name').value = Store.user.name;
+      if (!$('#phone').value) $('#phone').value = Store.user.phone;
+    }
 
     $('#state').insertAdjacentHTML('beforeend', Store.CONFIG.states.map((s) => `<option>${esc(s)}</option>`).join(''));
     $('#upiDesc').dataset.site = Store.CONFIG.razorpay ? 'pages.checkout.onlineText' : 'pages.checkout.onlineTextNoGateway';
@@ -124,6 +130,8 @@
           location.href = `order.html?id=${encodeURIComponent(order.id)}&token=${encodeURIComponent(order.token)}`;
           return;
         }
+        // Session expired while on this page: sign in again; the cart is kept.
+        if (err.status === 401) { location.href = Store.Auth.loginUrl('checkout.html'); return; }
         setBusy(false);
         renderSummary();
         const fields = err.body && err.body.fields;

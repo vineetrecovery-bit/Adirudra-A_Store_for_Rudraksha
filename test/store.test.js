@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
+process.env.ADMIN_PHONE = '9000000001';
 process.env.ADMIN_PASSWORD = 'test-password';
 process.env.RAZORPAY_KEY_ID = '';
 const { config } = await import('../backend/config.js');
@@ -14,6 +15,7 @@ const { validateCustomer } = await import('../backend/validate.js');
 const { createDb } = await import('../database/index.js');
 const { createApp } = await import('../backend/app.js');
 const { createSiteStore, DEFAULTS } = await import('../backend/site.js');
+const { ensureAdmin } = await import('../backend/auth.js');
 
 const customer = { name: 'Asha Verma', phone: '+91 98765 43210', email: 'asha@example.com', address: '12 MG Road', city: 'Jaipur', state: 'Rajasthan', pincode: '302001' };
 
@@ -23,6 +25,7 @@ before(async () => {
   await copyFile(new URL('../database/seed-products.json', import.meta.url), path.join(dataDir, 'seed-products.json'));
   db = createDb(dataDir);
   await db.load();
+  await ensureAdmin(db);
   process.env.DATA_DIR = dataDir;
   config.dataDir = dataDir;
   siteStore = createSiteStore(dataDir);
@@ -36,6 +39,17 @@ const call = async (p, { method = 'GET', body, cookie } = {}) => {
   const res = await fetch(base + p, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, body: body ? JSON.stringify(body) : undefined });
   return { status: res.status, body: await res.json().catch(() => null), headers: res.headers };
 };
+
+const cookieOf = (r) => r.headers.get('set-cookie').split(';')[0];
+let customerCookie;
+const customerSession = async () => {
+  if (!customerCookie) {
+    const r = await call('/api/auth/signup', { method: 'POST', body: { name: 'Asha Verma', phone: customer.phone, password: 'asha-secret-1' } });
+    customerCookie = cookieOf(r);
+  }
+  return customerCookie;
+};
+const adminLogin = (password = 'test-password') => call('/api/auth/login', { method: 'POST', body: { phone: '9000000001', password } });
 
 // ---------- Unit ----------
 test('pricing: percent coupon, free shipping threshold, COD fee', () => {
@@ -73,7 +87,8 @@ test('GET /api/products hides stock counts and internal fields', async () => {
 
 test('POST /api/orders prices on the server, reserves stock and protects order lookup', async () => {
   const before = db.products.get('AR-001').stock;
-  const r = await call('/api/orders', { method: 'POST', body: { items: [{ id: 'AR-001', qty: 2, price: 1 }], payment: 'cod', customer } });
+  const cookie = await customerSession();
+  const r = await call('/api/orders', { method: 'POST', cookie, body: { items: [{ id: 'AR-001', qty: 2, price: 1 }], payment: 'cod', customer } });
   assert.equal(r.status, 201);
   assert.equal(r.body.total, 1499 * 2 + config.shop.codFee); // client-sent price ignored
   assert.equal(db.products.get('AR-001').stock, before - 2);
@@ -90,19 +105,20 @@ test('POST /api/orders prices on the server, reserves stock and protects order l
 });
 
 test('POST /api/orders rejects invalid customer details and overselling', async () => {
-  const bad = await call('/api/orders', { method: 'POST', body: { items: [{ id: 'AR-002', qty: 1 }], payment: 'cod', customer: { ...customer, phone: '123' } } });
+  const cookie = await customerSession();
+  const bad = await call('/api/orders', { method: 'POST', cookie, body: { items: [{ id: 'AR-002', qty: 1 }], payment: 'cod', customer: { ...customer, phone: '123' } } });
   assert.equal(bad.status, 400);
   assert.ok(bad.body.fields.phone);
-  const over = await call('/api/orders', { method: 'POST', body: { items: [{ id: 'AR-002', qty: 999 }], payment: 'cod', customer } });
+  const over = await call('/api/orders', { method: 'POST', cookie, body: { items: [{ id: 'AR-002', qty: 999 }], payment: 'cod', customer } });
   assert.equal(over.status, 409);
 });
 
 test('admin: requires login, updates orders, cancel restocks', async () => {
   assert.equal((await call('/api/admin/orders')).status, 401);
-  assert.equal((await call('/api/admin/login', { method: 'POST', body: { password: 'nope' } })).status, 401);
-  const login = await call('/api/admin/login', { method: 'POST', body: { password: 'test-password' } });
+  assert.equal((await adminLogin('nope')).status, 401);
+  const login = await adminLogin();
   assert.equal(login.status, 200);
-  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const cookie = cookieOf(login);
 
   const orders = await call('/api/admin/orders', { cookie });
   assert.equal(orders.status, 200);
@@ -119,8 +135,7 @@ test('admin: requires login, updates orders, cancel restocks', async () => {
 });
 
 test('admin: create, edit and delete products with validation', async () => {
-  const login = await call('/api/admin/login', { method: 'POST', body: { password: 'test-password' } });
-  const cookie = login.headers.get('set-cookie').split(';')[0];
+  const cookie = cookieOf(await adminLogin());
   const bad = await call('/api/admin/products', { method: 'POST', cookie, body: { name: 'X', price: 0 } });
   assert.equal(bad.status, 400);
   const created = await call('/api/admin/products', { method: 'POST', cookie, body: { name: 'Ten Mukhi Nepal Rudraksha', price: 9500, stock: 3, type: 'Loose Bead', mukhi: 10, origin: 'Nepal', rarity: 'Rare' } });
@@ -143,7 +158,7 @@ test('verifies Razorpay signatures', async () => {
 });
 
 // ---------- Website editor ----------
-const adminCookie = async () => (await call('/api/admin/login', { method: 'POST', body: { password: 'test-password' } })).headers.get('set-cookie').split(';')[0];
+const adminCookie = async () => cookieOf(await adminLogin());
 
 test('site: pages are served with the saved theme and content injected', async () => {
   const cookie = await adminCookie();
@@ -275,4 +290,75 @@ test('site: page text, menu labels and link targets are editable and validated',
   const long = structuredClone(site); long.pages.shop.title = 'x'.repeat(200);
   assert.equal((await call('/api/admin/site', { method: 'PUT', body: long, cookie })).body.field, 'pages.shop.title');
   await call('/api/admin/site/reset', { method: 'POST', cookie });
+});
+
+// ---------- Accounts ----------
+test('accounts: sign up with phone + password, sign in, sign out', async () => {
+  const bad = await call('/api/auth/signup', { method: 'POST', body: { name: 'R', phone: '123', password: 'short' } });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(Object.keys(bad.body.fields).sort(), ['name', 'password', 'phone']);
+
+  const up = await call('/api/auth/signup', { method: 'POST', body: { name: 'Ravi Kumar', phone: '+91 91234 56789', password: 'ravi-pass-123' } });
+  assert.equal(up.status, 201);
+  assert.deepEqual(up.body.user, { id: up.body.user.id, name: 'Ravi Kumar', phone: '9123456789', role: 'user' });
+  assert.match(up.headers.get('set-cookie'), /HttpOnly/i);
+  assert.equal((await call('/api/auth/me', { cookie: cookieOf(up) })).body.user.phone, '9123456789');
+
+  // The same number can't register twice, and the stored password is hashed.
+  assert.equal((await call('/api/auth/signup', { method: 'POST', body: { name: 'Other', phone: '9123456789', password: 'another-pass' } })).status, 409);
+  const stored = JSON.parse(await readFile(path.join(dataDir, 'users.json'), 'utf8')).find((u) => u.phone === '9123456789');
+  assert.match(stored.passwordHash, /^scrypt\$/);
+  assert.ok(!JSON.stringify(stored).includes('ravi-pass-123'));
+
+  assert.equal((await call('/api/auth/login', { method: 'POST', body: { phone: '9123456789', password: 'wrong-pass' } })).status, 401);
+  const login = await call('/api/auth/login', { method: 'POST', body: { phone: '09123456789', password: 'ravi-pass-123' } });
+  assert.equal(login.status, 200);
+  assert.equal(login.body.user.role, 'user');
+
+  const out = await call('/api/auth/logout', { method: 'POST', cookie: cookieOf(login) });
+  assert.match(out.headers.get('set-cookie'), /adr_session=;/);
+  assert.equal((await call('/api/auth/me')).body.user, null);
+  // A forged cookie is rejected.
+  assert.equal((await call('/api/auth/me', { cookie: `adr_session=${up.body.user.id}.9999999999999.forged` })).body.user, null);
+});
+
+test('accounts: orders need sign-in and are listed under the account', async () => {
+  const anon = await call('/api/orders', { method: 'POST', body: { items: [{ id: 'AR-003', qty: 1 }], payment: 'cod', customer } });
+  assert.equal(anon.status, 401);
+  assert.equal((await call('/api/account/orders')).status, 401);
+
+  const cookie = await customerSession();
+  const placed = await call('/api/orders', { method: 'POST', cookie, body: { items: [{ id: 'AR-003', qty: 1 }], payment: 'cod', customer } });
+  assert.equal(placed.status, 201);
+  const mine = await call('/api/account/orders', { cookie });
+  assert.ok(mine.body.some((o) => o.id === placed.body.id && o.token === placed.body.token));
+  // The owner can open the order without the token; another customer can't see it.
+  assert.equal((await call(`/api/orders/${placed.body.id}`, { cookie })).status, 200);
+  const other = cookieOf(await call('/api/auth/signup', { method: 'POST', body: { name: 'Neha', phone: '9988776655', password: 'neha-pass-123' } }));
+  assert.equal((await call(`/api/orders/${placed.body.id}`, { cookie: other })).status, 404);
+  assert.ok(!(await call('/api/account/orders', { cookie: other })).body.some((o) => o.id === placed.body.id));
+});
+
+test('accounts: only the one admin account can use the admin API', async () => {
+  const cust = await customerSession();
+  assert.equal((await call('/api/admin/orders', { cookie: cust })).status, 403);
+  assert.equal((await call('/api/admin/me', { cookie: cust })).body.admin, false);
+  // Nobody can sign up with the admin's phone number.
+  assert.equal((await call('/api/auth/signup', { method: 'POST', body: { name: 'Fake', phone: '9000000001', password: 'fake-admin-1' } })).status, 409);
+
+  const cookie = await adminCookie();
+  assert.equal((await call('/api/admin/me', { cookie })).body.admin, true);
+  const users = (await call('/api/admin/users', { cookie })).body;
+  assert.equal(users.filter((u) => u.role === 'admin').length, 1);
+  assert.ok(users.every((u) => u.passwordHash === undefined));
+  assert.ok(users.find((u) => u.phone === '9876543210').orders >= 1);
+
+  // Changing ADMIN_PHONE moves admin rights: the old admin becomes a normal user.
+  config.admin.phone = '9876543210'; config.admin.password = 'new-admin-pass';
+  await ensureAdmin(db);
+  assert.deepEqual(db.users.all().filter((u) => u.role === 'admin').map((u) => u.phone), ['9876543210']);
+  assert.equal((await call('/api/admin/orders', { cookie })).status, 403); // the old admin's session
+  config.admin.phone = '9000000001'; config.admin.password = 'test-password';
+  await ensureAdmin(db);
+  customerCookie = null; // that customer's password was replaced while they were admin
 });

@@ -1,4 +1,4 @@
-// Products and orders. Data is held in memory and saved to JSON files in the data folder.
+// Products, orders and user accounts. Data is held in memory and saved to JSON files in the data folder.
 // Good for a single-server shop; swap this module for Postgres/SQLite when you outgrow it.
 // The rest of the app only uses the small interface returned by createDb().
 import path from 'node:path';
@@ -11,9 +11,10 @@ export const SEED_PRODUCTS = fileURLToPath(new URL('./seed-products.json', impor
 export function createDb(dataDir) {
   const files = {
     products: createJsonFile(path.join(dataDir, 'products.json')),
-    orders: createJsonFile(path.join(dataDir, 'orders.json'))
+    orders: createJsonFile(path.join(dataDir, 'orders.json')),
+    users: createJsonFile(path.join(dataDir, 'users.json'))
   };
-  const state = { products: [], orders: [] };
+  const state = { products: [], orders: [], users: [] };
 
   async function load() {
     const products = await files.products.read();
@@ -27,6 +28,8 @@ export function createDb(dataDir) {
     const orders = await files.orders.read();
     state.orders = orders ?? [];
     if (orders === undefined) await files.orders.write(state.orders);
+
+    state.users = (await files.users.read()) ?? [];
   }
 
   const persist = (name) => files[name].write(state[name]);
@@ -64,6 +67,20 @@ export function createDb(dataDir) {
         Object.assign(o, changes, { updatedAt: new Date().toISOString() });
         await persist('orders');
         return o;
+      }
+    },
+    // { id, name, phone, role: 'admin' | 'user', passwordHash, createdAt, updatedAt }
+    users: {
+      all: () => state.users,
+      get: (id) => state.users.find((u) => u.id === id),
+      byPhone: (phone) => state.users.find((u) => u.phone === phone),
+      async create(user) { state.users.push(user); await persist('users'); return user; },
+      async update(id, changes) {
+        const u = state.users.find((x) => x.id === id);
+        if (!u) return null;
+        Object.assign(u, changes, { updatedAt: new Date().toISOString() });
+        await persist('users');
+        return u;
       }
     }
   };

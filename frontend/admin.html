@@ -20,6 +20,7 @@
       <nav class="admin-tabs" id="tabs" hidden aria-label="Admin sections">
         <button type="button" data-tab="orders" aria-current="page">Orders</button>
         <button type="button" data-tab="products">Products</button>
+        <button type="button" data-tab="customers">Customers</button>
         <button type="button" data-tab="site">Website</button>
         <button type="button" data-tab="settings">Settings</button>
       </nav>
@@ -36,6 +37,7 @@
       <form class="login-card" id="loginForm">
         <p class="kicker">Store admin</p>
         <h1 class="page-title" style="font-size:44px">Sign in</h1>
+        <div class="field"><label for="phone">Admin mobile number</label><input class="input" id="phone" type="tel" inputmode="numeric" autocomplete="username" placeholder="10-digit mobile" required></div>
         <div class="field"><label for="password">Password</label><input class="input" id="password" type="password" autocomplete="current-password" required></div>
         <p class="field__error" id="loginError" role="alert"></p>
         <button class="button button--dark button--block" type="submit">Sign in</button>
@@ -60,6 +62,18 @@
       </div>
       <div class="stats" id="stats"></div>
       <div class="table-wrap"><table class="admin-table" id="ordersTable"></table></div>
+    </section>
+
+    <!-- Customers -->
+    <section id="customersView" hidden>
+      <div class="admin-head">
+        <h1 class="page-title">Customers</h1>
+        <div class="admin-filters">
+          <input class="input" id="customerSearch" type="search" placeholder="Search name or phone…" aria-label="Search customers">
+        </div>
+      </div>
+      <div class="stats" id="customerStats"></div>
+      <div class="table-wrap"><table class="admin-table" id="customersTable"></table></div>
     </section>
 
     <!-- Products -->

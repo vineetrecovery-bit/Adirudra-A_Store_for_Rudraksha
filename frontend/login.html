@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in — Adirudra</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/motion.css">
+  <script src="js/motion.js"></script>
+</head>
+<body data-page="login">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="site-header"></div>
+
+  <main id="main" class="shell">
+    <section class="auth-card" aria-labelledby="authTitle">
+      <div class="auth-tabs" role="tablist" aria-label="Sign in or create an account">
+        <button type="button" role="tab" id="tabLogin" aria-selected="true" aria-controls="loginForm">Sign in</button>
+        <button type="button" role="tab" id="tabSignup" aria-selected="false" aria-controls="signupForm">Create account</button>
+      </div>
+
+      <h1 class="auth-card__title" id="authTitle">Welcome back</h1>
+      <p class="muted auth-card__intro" id="authIntro">Sign in with your mobile number and password.</p>
+
+      <form id="loginForm" class="auth-form" novalidate role="tabpanel" aria-labelledby="tabLogin">
+        <div class="field"><label for="loginPhone">Mobile number</label><input class="input" id="loginPhone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" required><span class="field__error"></span></div>
+        <div class="field"><label for="loginPassword">Password</label><input class="input" id="loginPassword" name="password" type="password" autocomplete="current-password" required><span class="field__error"></span></div>
+        <p class="field__error" id="loginError" role="alert"></p>
+        <button class="button button--dark button--block" type="submit">Sign in</button>
+      </form>
+
+      <form id="signupForm" class="auth-form" novalidate role="tabpanel" aria-labelledby="tabSignup" hidden>
+        <div class="field"><label for="signupName">Full name</label><input class="input" id="signupName" name="name" autocomplete="name" required><span class="field__error"></span></div>
+        <div class="field"><label for="signupPhone">Mobile number</label><input class="input" id="signupPhone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile" required><span class="field__error"></span></div>
+        <div class="field"><label for="signupPassword">Password</label><input class="input" id="signupPassword" name="password" type="password" autocomplete="new-password" minlength="8" required><small class="muted">At least 8 characters.</small><span class="field__error"></span></div>
+        <p class="field__error" id="signupError" role="alert"></p>
+        <button class="button button--dark button--block" type="submit">Create account</button>
+      </form>
+    </section>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="js/site.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

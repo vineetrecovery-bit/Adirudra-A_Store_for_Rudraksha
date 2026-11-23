@@ -26,11 +26,20 @@ export const config = {
     WELCOME200: { type: 'flat', value: 200, min: 1500, label: '₹200 off orders over ₹1,500' }
   },
 
+  // The one admin account. It signs in on the normal login page with this phone + password.
+  // Leave either empty to have no admin (the admin panel then can't be opened).
   admin: {
+    phone: (env.ADMIN_PHONE || '').replace(/\D/g, '').replace(/^(91|0)(?=\d{10}$)/, ''),
     password: env.ADMIN_PASSWORD || '',
     // A random secret means sessions reset on restart; set SESSION_SECRET to keep them.
     sessionSecret: env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
     sessionHours: 12
+  },
+
+  // Customer accounts (sign up with phone number + password).
+  users: {
+    sessionDays: 30,
+    minPasswordLength: 8
   },
 
   razorpay: {

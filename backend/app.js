@@ -6,7 +6,7 @@ import { config } from './config.js';
 import { quote, PricingError } from './pricing.js';
 import { validateCustomer, validateProduct, INDIAN_STATES } from './validate.js';
 import { createRazorpayOrder, verifyPaymentSignature } from './razorpay.js';
-import { requireAdmin, isAdmin, login, logout } from './auth.js';
+import { createAuth } from './auth.js';
 import { DEFAULTS, HEADING_FONTS, BODY_FONTS, TRUST_ICONS, validateSite, themeCss, fontsUrl } from './site.js';
 import { saveUpload, uploadsDir, MAX_UPLOAD_BYTES } from './uploads.js';
 import { createSettingsStore, validateSettings } from './settings.js';
@@ -61,6 +61,7 @@ export function createApp(db, siteStore, settingsStore = createSettingsStore(con
   });
 
   const getProduct = (id) => db.products.get(id);
+  const { currentUser, isAdmin, requireUser, requireAdmin, signup, login, logout, me } = createAuth(db);
 
   function restock(order) {
     if (order.stockRestored) return;
@@ -102,7 +103,19 @@ export function createApp(db, siteStore, settingsStore = createSettingsStore(con
     res.json(quote(items, { coupon, payment, getProduct }));
   });
 
-  api.post('/orders', route(async (req, res) => {
+  // ---------------- Accounts ----------------
+  api.post('/auth/signup', route(signup));
+  api.post('/auth/login', route(login));
+  api.post('/auth/logout', logout);
+  api.get('/auth/me', me);
+
+  // The signed-in customer's own orders, newest first (token included so the order page opens).
+  api.get('/account/orders', requireUser, (req, res) => {
+    res.json(db.orders.all().filter((o) => o.userId === req.user.id).map((o) => ({ ...publicOrder(o), token: o.token })));
+  });
+
+  // Placing an order needs a signed-in account; the order is saved against it.
+  api.post('/orders', requireUser, route(async (req, res) => {
     const { items, coupon = '', payment, customer } = req.body || {};
     if (!PAYMENT_METHODS.includes(payment)) return res.status(400).json({ error: 'Choose a payment method.' });
     const cust = validateCustomer(customer);
@@ -117,6 +130,7 @@ export function createApp(db, siteStore, settingsStore = createSettingsStore(con
     const now = new Date().toISOString();
     const order = {
       id: newOrderId(),
+      userId: req.user.id,
       token: crypto.randomBytes(24).toString('base64url'),
       createdAt: now,
       updatedAt: now,
@@ -148,11 +162,15 @@ export function createApp(db, siteStore, settingsStore = createSettingsStore(con
     res.status(201).json({ id: order.id, token: order.token, total: order.total, razorpay });
   }));
 
-  // Look up an order: needs the private token issued at checkout (or an admin session).
+  // Look up an order: needs the private token issued at checkout, the account that placed it, or the admin.
   function loadOrderForCustomer(req, res) {
     const order = db.orders.get(req.params.id);
     const token = String(req.query.token || req.body?.token || '');
-    const ok = order && (isAdmin(req) || (token.length === order.token.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(order.token))));
+    const user = order && currentUser(req);
+    const ok = order && (
+      user?.role === 'admin' || (order.userId && user?.id === order.userId) ||
+      (token.length === order.token.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(order.token)))
+    );
     if (!ok) { res.status(404).json({ error: 'Order not found.' }); return null; }
     return order;
   }
@@ -181,10 +199,21 @@ export function createApp(db, siteStore, settingsStore = createSettingsStore(con
 
   // ---------------- Admin API ----------------
   const admin = express.Router();
-  admin.post('/login', login);
-  admin.post('/logout', logout);
-  admin.get('/me', (req, res) => res.json({ admin: isAdmin(req), enabled: Boolean(config.admin.password) }));
+  // The old shared-password login is gone: the admin signs in with their account (POST /api/auth/login).
+  admin.get('/me', (req, res) => {
+    const user = currentUser(req);
+    res.json({ admin: isAdmin(req), signedIn: Boolean(user), enabled: db.users.all().some((u) => u.role === 'admin') });
+  });
   admin.use(requireAdmin);
+
+  // Customer accounts (read-only list; passwords are never sent).
+  admin.get('/users', (req, res) => {
+    const counts = new Map();
+    for (const o of db.orders.all()) if (o.userId) counts.set(o.userId, (counts.get(o.userId) || 0) + 1);
+    res.json(db.users.all()
+      .map((u) => ({ id: u.id, name: u.name, phone: u.phone, role: u.role, createdAt: u.createdAt, orders: counts.get(u.id) || 0 }))
+      .sort((a, b) => (a.role === b.role ? b.createdAt.localeCompare(a.createdAt) : a.role === 'admin' ? -1 : 1)));
+  });
 
   admin.get('/orders', (req, res) => {
     res.json(db.orders.all().map(({ token, ...o }) => o));

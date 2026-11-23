@@ -44,6 +44,7 @@
   // ---------- State loaded from the server ----------
   let products = [];
   let CONFIG = {};
+  let user = null; // signed-in account { id, name, phone, role } or null
   const byId = (id) => products.find((p) => p.id === id);
 
   // ---------- Cart ----------
@@ -174,6 +175,7 @@
     search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
     bag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
     menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+    user: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>'
   };
 
@@ -193,6 +195,7 @@
         </nav>
         <div class="header-actions">
           <button class="icon-btn" type="button" id="searchToggle" aria-label="Search" aria-expanded="false" aria-controls="searchBar">${ICONS.search}</button>
+          <a class="icon-btn" href="${user ? 'account.html' : 'login.html'}" aria-label="${user ? `Account: ${esc(user.name)}` : 'Sign in'}" title="${user ? esc(user.name) : 'Sign in'}"${page === 'account' || page === 'login' ? ' aria-current="page"' : ''}>${ICONS.user}</a>
           <a class="icon-btn" href="cart.html" aria-label="Cart">${ICONS.bag}<span class="cart-count" id="cartCount"></span></a>
           <button class="icon-btn menu-toggle" type="button" id="menuToggle" aria-label="Menu" aria-expanded="false" aria-controls="primaryNav">${ICONS.menu}</button>
         </div>
@@ -301,9 +304,10 @@
 
   // Everything a page needs is loaded once; pages run their code via Store.onReady().
   const domReady = new Promise((r) => (document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', r, { once: true }) : r()));
-  const ready = Promise.all([api('/config'), api('/products'), domReady]).then(([cfg, list]) => {
-    CONFIG = cfg; products = list;
-    window.Store.CONFIG = cfg; window.Store.products = list;
+  const me = api('/auth/me').then((r) => r.user).catch(() => null);
+  const ready = Promise.all([api('/config'), api('/products'), me, domReady]).then(([cfg, list, u]) => {
+    CONFIG = cfg; products = list; user = u;
+    window.Store.CONFIG = cfg; window.Store.products = list; window.Store.user = u;
     renderHeader(); renderFooter();
     if (window.Site) Site.apply();
   });
@@ -313,5 +317,17 @@
     ready.then(fn).catch((err) => { if (!(err instanceof ApiError)) console.error(err); });
   }
 
-  window.Store = { api, ApiError, onReady, products, CONFIG, byId, Cart, MyOrders, quote, payWithRazorpay, getCoupon, setCoupon, money, esc, $, $$, visual, productCard, toast, whatsappLink, ICONS };
+  // ---------- Accounts ----------
+  // Only same-site paths are allowed as a "next" page after signing in (no open redirects).
+  function safeNext(value, fallback = 'account.html') {
+    const v = String(value || '');
+    return /^[a-z0-9-]+(?:\.html)?(?:[?#]\S*)?$/i.test(v) ? v : fallback;
+  }
+  const Auth = {
+    loginUrl: (next = location.pathname.replace(/^\//, '') + location.search) => `login.html?next=${encodeURIComponent(next || 'index.html')}`,
+    async logout() { await api('/auth/logout', { method: 'POST' }).catch(() => {}); location.href = 'index.html'; },
+    safeNext
+  };
+
+  window.Store = { api, ApiError, onReady, products, CONFIG, user, Auth, byId, Cart, MyOrders, quote, payWithRazorpay, getCoupon, setCoupon, money, esc, $, $$, visual, productCard, toast, whatsappLink, ICONS };
 })();

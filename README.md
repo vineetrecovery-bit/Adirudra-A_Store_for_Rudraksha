@@ -8,7 +8,7 @@ Needs Node.js 22.9 or newer.
 
 ```sh
 npm install
-cp .env.example .env      # then set ADMIN_PASSWORD (and Razorpay keys if you have them)
+cp .env.example .env      # then set ADMIN_PHONE + ADMIN_PASSWORD (and Razorpay keys if you have them)
 npm start                 # or: npm run dev   (restarts on file changes)
 ```
 
@@ -33,11 +33,11 @@ backend/               Express server and business logic
   settings.js          Store settings edited in the admin (fees, contact, coupons)
   site.js              Website theme + content, validation, version history
   uploads.js           Image upload checks
-  auth.js              Admin password login, signed httpOnly cookie, login rate limit
+  auth.js              Accounts: admin + customer groups, phone/password sign-in, sessions, rate limits
 
 database/              All storage. Swap these modules to move to Postgres/MySQL
   index.js             What the backend imports; picks the data folder
-  db.js                Products + orders
+  db.js                Products, orders and user accounts
   documents.js         Store settings, website content, version history
   files.js             Uploaded images
   json-file.js         Atomic JSON file read/write
@@ -46,16 +46,25 @@ database/              All storage. Swap these modules to move to Postgres/MySQL
 test/                API and pricing tests (node:test)
 ```
 
+### Accounts and user groups
+There are two groups, and everyone signs in with **mobile number + password** at `/login`:
+- **Admin:** exactly one account, created from `ADMIN_PHONE` and `ADMIN_PASSWORD` in `.env` when the server starts. Only this account can open `/admin`. Changing `ADMIN_PHONE` moves admin rights to that number, and the old admin becomes a normal customer. Changing `ADMIN_PASSWORD` signs the admin out everywhere. Nobody can sign up with the admin's number.
+- **Customers:** anyone can create an account on the website (name, mobile number, password of 8+ characters). Customers can't open the admin panel. **My account** (`/account`) shows their orders.
+
+Passwords are stored as salted scrypt hashes in `database/data/users.json`. Sessions are signed httpOnly cookies (30 days for customers, 12 hours for the admin). Sign-in and sign-up are rate-limited.
+
 ### Customer flow
 1. Products load from `GET /api/products`. The cart (IDs + quantities only) is kept in the browser.
 2. The cart and checkout call `POST /api/quote`, so every price, discount and fee is computed on the server.
-3. `POST /api/orders` validates the customer details, re-prices the cart, reserves stock and saves the order. It returns an order ID and a private token. The confirmation page uses the token to show the order.
+3. Checkout needs a signed-in account: signed-out visitors are sent to `/login` and come back afterwards, with their name and phone pre-filled. `POST /api/orders` validates the customer details, re-prices the cart, reserves stock and saves the order against the account. It returns an order ID and a private token. The confirmation page uses the token to show the order.
 4. Payment options:
    - **Online (Razorpay):** opens Razorpay Checkout. The server verifies the payment signature before marking the order paid. If the customer closes the payment window, the order page shows a "Pay now" button.
    - **Cash on delivery:** the order is confirmed straight away (₹49 fee).
    - **WhatsApp:** the order is saved and a pre-filled WhatsApp message opens.
 
 ### Admin (`/admin`)
+Sign in with the admin account's mobile number and password.
+- **Customers:** every registered account with its mobile number, join date and number of orders.
 - **Orders:** search, filter by status, totals at a glance, full order details, change status or payment status, and add notes such as tracking numbers. Cancelling an order puts its items back in stock.
 - **Settings:** free-shipping threshold, shipping fee, cash-on-delivery fee, max quantity per product, WhatsApp number, store email, and coupon codes (add, edit, pause or remove; % or ₹ off, optional minimum order). Changes apply to new orders immediately, no restart needed. They're saved in `database/data/settings.json`; the `.env` values are only the starting defaults.
 - **Products:** add, edit or delete products. Price, stock, featured and visibility can be edited directly in the table. A product that appears in past orders is hidden instead of deleted.
@@ -79,10 +88,14 @@ How it works: settings live in `database/data/site.json` (defaults in `backend/s
 | GET | `/api/config` | Public store settings |
 | GET | `/api/products`, `/api/products/:id` | Visible products |
 | POST | `/api/quote` | `{items, coupon, payment}` → priced cart |
-| POST | `/api/orders` | Place an order |
+| POST | `/api/auth/signup`, `/api/auth/login`, `/api/auth/logout` | Customer and admin accounts (phone + password) |
+| GET | `/api/auth/me` | The signed-in account, or `null` |
+| GET | `/api/account/orders` | The signed-in customer's orders |
+| POST | `/api/orders` | Place an order (needs sign-in) |
 | GET | `/api/orders/:id?token=` | Customer's order |
 | POST | `/api/orders/:id/pay` | Verify Razorpay payment |
-| POST | `/api/admin/login` / `logout` | Admin session |
+| GET | `/api/admin/me` | Whether the signed-in account is the admin |
+| GET | `/api/admin/users` | Registered accounts |
 | GET/PATCH | `/api/admin/orders[/:id]` | Manage orders |
 | GET/POST/PATCH/DELETE | `/api/admin/products[/:id]` | Manage products |
 | GET/PUT | `/api/admin/settings` | Store settings (fees, contact, coupons) |
@@ -92,12 +105,12 @@ How it works: settings live in `database/data/site.json` (defaults in `backend/s
 
 ## Configuration
 
-The admin password, session secret and Razorpay keys are set in `.env` (see `.env.example`). The WhatsApp number, store email, shipping/COD fees and coupon codes can be set there and in `backend/config.js` as starting defaults, but once you save **Admin → Settings**, the values in `database/data/settings.json` are used instead.
+The admin account (phone + password), session secret and Razorpay keys are set in `.env` (see `.env.example`). The WhatsApp number, store email, shipping/COD fees and coupon codes can be set there and in `backend/config.js` as starting defaults, but once you save **Admin → Settings**, the values in `database/data/settings.json` are used instead.
 
 ## Before going live
 
 - Use **Razorpay live keys** and set `NODE_ENV=production`. Run the site behind HTTPS (for example nginx or Caddy, or a host like Render or Railway).
-- Set a **strong `ADMIN_PASSWORD`** and a fixed `SESSION_SECRET`.
+- Set `ADMIN_PHONE`, a **strong `ADMIN_PASSWORD`** and a fixed `SESSION_SECRET` (without it, everyone is signed out whenever the server restarts).
 - **Back up the `database/data/` folder** (or set `DATA_DIR` to a folder outside the project, so redeploys never touch it). It holds products, orders, store and website settings, and uploaded images.
   JSON files suit a single server with modest traffic. For more traffic, replace the modules in `database/` with SQLite or Postgres versions; the backend only uses their small interface.
 - Set up a **Razorpay webhook** (`payment.captured`) as a backup to the browser callback.

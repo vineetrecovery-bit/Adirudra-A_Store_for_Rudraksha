@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My account — Adirudra</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/motion.css">
+  <script src="js/motion.js"></script>
+</head>
+<body data-page="account">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="site-header"></div>
+
+  <main id="main">
+    <div class="shell page-head">
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="index.html">Home</a> / <span>My account</span></nav>
+      <h1 class="page-title" id="accountTitle">My account</h1>
+    </div>
+
+    <div class="shell account-layout" id="accountView" hidden>
+      <aside class="account-card">
+        <p class="kicker">Signed in as</p>
+        <p class="account-card__name" id="accountName"></p>
+        <p class="muted" id="accountPhone"></p>
+        <a class="button button--dark button--block" href="admin.html" id="adminLink" hidden>Open admin panel</a>
+        <button class="button button--outline button--block" type="button" id="logoutBtn">Sign out</button>
+      </aside>
+
+      <section aria-labelledby="ordersHeading">
+        <h2 class="account-section-title" id="ordersHeading">Your orders</h2>
+        <div id="orderList"><p class="muted">Loading your orders…</p></div>
+      </section>
+    </div>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="js/site.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/account.js"></script>
+</body>
+</html>
