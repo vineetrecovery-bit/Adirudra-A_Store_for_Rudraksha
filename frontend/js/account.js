@@ -4,7 +4,7 @@
   const { api, Auth, money, esc, $ } = Store;
 
   const STATUS = { pending: 'Awaiting payment', confirmed: 'Confirmed', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled' };
-  const date = (iso) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  const date = (iso) => new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
 
   function renderOrders(orders) {
     if (!orders.length) {

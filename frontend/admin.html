@@ -177,9 +177,25 @@
         <div class="field"><label for="pSize">Size</label><input class="input" id="pSize" name="size" placeholder="18–20 MM"><span class="field__error"></span></div>
         <div class="field"><label for="pWeight">Weight</label><input class="input" id="pWeight" name="weight" placeholder="8.2 G"><span class="field__error"></span></div>
         <div class="field"><label for="pVerification">Verification ID</label><input class="input" id="pVerification" name="verification"><span class="field__error"></span></div>
-        <div class="field"><label for="pImage">Photo</label><div style="display:flex;gap:8px"><input class="input" id="pImage" name="image" placeholder="Upload or paste an https:// link"><label class="button button--outline" style="min-height:46px;cursor:pointer;white-space:nowrap">Upload<input type="file" id="pImageFile" accept="image/jpeg,image/png,image/webp,image/gif" hidden></label></div><span class="field__error"></span></div>
+        <div class="field full" data-field-name="media">
+          <span class="label">Photos &amp; videos</span>
+          <div class="media-list" id="pMediaList"></div>
+          <div class="media-add">
+            <label class="button button--outline media-add__upload">Upload photos or videos<input type="file" id="pMediaFile" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" multiple hidden></label>
+            <input class="input" id="pMediaUrl" placeholder="…or paste an https:// link" aria-label="Photo or video link">
+            <select class="select" id="pMediaType" aria-label="Link type"><option value="image">Photo</option><option value="video">Video</option></select>
+            <button class="button button--outline" type="button" id="pMediaAdd">Add link</button>
+          </div>
+          <small class="muted">The first photo is shown on product cards. Photos up to 5 MB (JPG, PNG, WebP, GIF), videos up to 50 MB (MP4, WebM, MOV).</small>
+          <span class="field__error"></span>
+        </div>
         <div class="field full"><label for="pDesc">Description</label><textarea class="textarea" id="pDesc" name="description" rows="4"></textarea><span class="field__error"></span></div>
         <div class="field full"><label for="pKeywords">Search keywords (comma separated)</label><input class="input" id="pKeywords" name="keywords"><span class="field__error"></span></div>
+        <p class="full form-subhead">Shipping (for Shiprocket)</p>
+        <div class="field"><label for="pSku">SKU</label><input class="input" id="pSku" name="sku" placeholder="Same as product ID"><span class="field__error"></span></div>
+        <div class="field"><label for="pHsn">HSN code</label><input class="input" id="pHsn" name="hsnCode" inputmode="numeric" placeholder="Optional"><span class="field__error"></span></div>
+        <div class="field"><label for="pWeightGrams">Shipping weight (g)</label><input class="input" id="pWeightGrams" name="weightGrams" type="number" min="0" step="0.1" placeholder="From the weight above"><span class="field__error"></span></div>
+        <div class="field"><label>Packed size L × B × H (cm)</label><div class="dims"><input class="input" name="lengthCm" type="number" min="0" step="0.1" aria-label="Length (cm)" placeholder="L"><input class="input" name="breadthCm" type="number" min="0" step="0.1" aria-label="Breadth (cm)" placeholder="B"><input class="input" name="heightCm" type="number" min="0" step="0.1" aria-label="Height (cm)" placeholder="H"></div><span class="field__error"></span></div>
         <div class="full check-row">
           <label class="check"><input type="checkbox" name="featured"> Featured</label>
           <label class="check"><input type="checkbox" name="certified" checked> Lab certified</label>

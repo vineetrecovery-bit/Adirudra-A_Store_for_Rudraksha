@@ -1,6 +1,6 @@
 // Store settings edited from Admin > Settings: shipping and COD fees, contact details,
 // order limits and coupon codes. Values from .env / config.js are the starting defaults;
-// anything saved in the admin is stored in the database (settings.json) and takes precedence.
+// anything saved in the admin is stored in the settings table (key 'store') and takes precedence.
 // Saved settings are applied to the shared `config` object, so pricing and checkout use
 // them straight away (no restart needed).
 import { config } from './config.js';
@@ -92,8 +92,8 @@ function apply(s) {
   }
 }
 
-export function createSettingsStore(dataDir) {
-  const doc = createDocuments(dataDir).settings;
+export function createSettingsStore(db) {
+  const doc = createDocuments(db).settings;
   let current = null; // full settings incl. inactive coupons; null = nothing saved yet
 
   return {
@@ -102,7 +102,7 @@ export function createSettingsStore(dataDir) {
       try { stored = await doc.read(); } catch { return; }
       if (stored === undefined) return; // nothing saved yet: keep .env defaults
       const v = validateSettings(stored);
-      if (v.error) { console.warn(`settings.json: ${v.error} (${v.field}); using .env defaults.`); return; }
+      if (v.error) { console.warn(`Saved store settings: ${v.error} (${v.field}); using .env defaults.`); return; }
       current = v.value;
       apply(current);
     },

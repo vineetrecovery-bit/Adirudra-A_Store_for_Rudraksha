@@ -5,6 +5,7 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { config } from './config.js';
+import { nowIst } from '../database/time.js';
 
 const scrypt = promisify(crypto.scrypt);
 const COOKIE = 'adr_session';
@@ -85,19 +86,19 @@ export async function ensureAdmin(db) {
   }
   const adminPhone = configured && validAdminPhone(phone) ? phone : null;
 
-  for (const u of db.users.all()) {
+  for (const u of await db.users.list()) {
     if (u.role === 'admin' && u.phone !== adminPhone) await db.users.update(u.id, { role: 'user' });
   }
   if (!adminPhone) return null;
 
-  const existing = db.users.byPhone(adminPhone);
+  const existing = await db.users.byPhone(adminPhone);
   if (existing) {
     const changes = {};
     if (existing.role !== 'admin') changes.role = 'admin';
     if (!(await verifyPassword(password, existing.passwordHash))) changes.passwordHash = await hashPassword(password);
     return Object.keys(changes).length ? db.users.update(existing.id, changes) : existing;
   }
-  const now = new Date().toISOString();
+  const now = nowIst();
   return db.users.create({
     id: `U-${crypto.randomBytes(6).toString('hex')}`, name: 'Admin', phone: adminPhone, role: 'admin',
     passwordHash: await hashPassword(password), createdAt: now, updatedAt: now
@@ -109,30 +110,39 @@ export function createAuth(db) {
   const loginPhone = limiter(5);
   const signupIp = limiter(10);
 
+  // The signed-in account for this request, or null. Looked up once per request.
   function currentUser(req) {
-    const [id, exp, sig] = readCookie(req, COOKIE).split('.');
-    if (!id || !exp || !sig || Number(exp) <= Date.now()) return null;
-    const user = db.users.get(id);
-    if (!user || !safeEqual(sessionSig(user, exp), sig)) return null;
-    return user;
+    if (!req._userLookup) {
+      req._userLookup = (async () => {
+        const [id, exp, sig] = readCookie(req, COOKIE).split('.');
+        if (!id || !exp || !sig || Number(exp) <= Date.now()) return null;
+        const user = await db.users.get(id);
+        if (!user || !safeEqual(sessionSig(user, exp), sig)) return null;
+        return user;
+      })();
+    }
+    return req._userLookup;
   }
 
-  const isAdmin = (req) => currentUser(req)?.role === 'admin';
+  const isAdmin = async (req) => (await currentUser(req))?.role === 'admin';
 
-  function requireUser(req, res, next) {
-    const user = currentUser(req);
-    if (!user) return res.status(401).json({ error: 'Please sign in to continue.' });
+  // Express 4 doesn't catch rejected promises, so errors are passed to next() by hand.
+  const guard = (check) => (req, res, next) => check(req, res).then((ok) => ok && next(), next);
+
+  const requireUser = guard(async (req, res) => {
+    const user = await currentUser(req);
+    if (!user) { res.status(401).json({ error: 'Please sign in to continue.' }); return false; }
     req.user = user;
-    next();
-  }
+    return true;
+  });
 
-  function requireAdmin(req, res, next) {
-    const user = currentUser(req);
-    if (!user) return res.status(401).json({ error: 'Please sign in.' });
-    if (user.role !== 'admin') return res.status(403).json({ error: 'This account does not have admin access.' });
+  const requireAdmin = guard(async (req, res) => {
+    const user = await currentUser(req);
+    if (!user) { res.status(401).json({ error: 'Please sign in.' }); return false; }
+    if (user.role !== 'admin') { res.status(403).json({ error: 'This account does not have admin access.' }); return false; }
     req.user = user;
-    next();
-  }
+    return true;
+  });
 
   async function signup(req, res) {
     if (signupIp.blocked(req.ip)) return res.status(429).json({ error: 'Too many sign-ups from this network. Try again later.' });
@@ -147,15 +157,22 @@ export function createAuth(db) {
     else if (password.length > MAX_PASSWORD) fields.password = 'That password is too long.';
     if (Object.keys(fields).length) return res.status(400).json({ error: 'Please check your details.', fields });
     // The admin's phone is reserved, so nobody can sign up as (or get mixed up with) the admin.
-    if (db.users.byPhone(phone) || phone === config.admin.phone) {
+    if ((await db.users.byPhone(phone)) || phone === config.admin.phone) {
       return res.status(409).json({ error: 'An account with this phone number already exists. Please sign in.', fields: { phone: 'Already registered.' } });
     }
     signupIp.hit(req.ip);
-    const now = new Date().toISOString();
-    const user = await db.users.create({
-      id: `U-${crypto.randomBytes(6).toString('hex')}`, name, phone, role: 'user',
-      passwordHash: await hashPassword(password), createdAt: now, updatedAt: now
-    });
+    const now = nowIst();
+    let user;
+    try {
+      user = await db.users.create({
+        id: `U-${crypto.randomBytes(6).toString('hex')}`, name, phone, role: 'user',
+        passwordHash: await hashPassword(password), createdAt: now, updatedAt: now
+      });
+    } catch (err) {
+      // Two sign-ups with the same number at once: MySQL's unique phone index stops the second.
+      if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'An account with this phone number already exists. Please sign in.', fields: { phone: 'Already registered.' } });
+      throw err;
+    }
     startSession(res, user);
     res.status(201).json({ user: publicUser(user) });
   }
@@ -166,7 +183,7 @@ export function createAuth(db) {
     if (loginIp.blocked(req.ip) || loginPhone.blocked(phone)) {
       return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
     }
-    const user = validPhone(phone) || validAdminPhone(phone) ? db.users.byPhone(phone) : null;
+    const user = validPhone(phone) || validAdminPhone(phone) ? await db.users.byPhone(phone) : null;
     // Hash even when the user doesn't exist, so response time doesn't reveal which numbers are registered.
     const ok = user ? await verifyPassword(password, user.passwordHash) : (await hashPassword(password), false);
     if (!ok) {
@@ -183,7 +200,7 @@ export function createAuth(db) {
     res.json({ ok: true });
   }
 
-  const me = (req, res) => res.json({ user: publicUser(currentUser(req)) });
+  const me = async (req, res) => res.json({ user: publicUser(await currentUser(req)) });
 
   return { currentUser, isAdmin, requireUser, requireAdmin, signup, login, logout, me };
 }

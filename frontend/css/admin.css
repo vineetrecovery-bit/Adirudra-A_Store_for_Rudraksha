@@ -169,3 +169,20 @@ body.is-editing-site .admin-main { max-width: none; width: 100%; margin: 0; padd
 @media (max-width: 860px) { .settings-card { padding: 18px; } .settings-card .form-grid { grid-template-columns: 1fr; } }
 
 .ed-note { display: block; margin: 0 0 12px; padding: 8px 10px; background: var(--paper); border-left: 2px solid var(--gold); }
+
+/* ---------- Product photos & videos ---------- */
+.media-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin: 4px 0 10px; }
+.media-list__empty { font-size: 13px; grid-column: 1 / -1; }
+.media-tile { position: relative; aspect-ratio: 1; border: 1px solid var(--line); background: var(--media-bg); overflow: hidden; }
+.media-tile img, .media-tile video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.media-tile__badge { position: absolute; top: 6px; left: 6px; background: var(--walnut); color: var(--on-primary); font-size: 10px; font-weight: 600; padding: 2px 6px; }
+.media-tile__badge--main { left: auto; right: 6px; background: var(--bronze); }
+.media-tile__actions { position: absolute; inset: auto 0 0 0; display: flex; justify-content: space-between; background: color-mix(in srgb, var(--dark) 72%, transparent); }
+.media-tile__actions button { flex: 1; background: none; border: 0; color: #fff; font-size: 16px; line-height: 1; padding: 6px 0; cursor: pointer; }
+.media-tile__actions button:disabled { opacity: .35; cursor: default; }
+.media-tile__actions button:hover:not(:disabled) { background: color-mix(in srgb, #fff 14%, transparent); }
+.media-add { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: stretch; }
+.media-add__upload { cursor: pointer; white-space: nowrap; }
+.form-subhead { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--bronze); margin-top: 6px; border-top: 1px solid var(--line); padding-top: 14px; }
+.dims { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 640px) { .media-add { grid-template-columns: 1fr; } }

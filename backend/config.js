@@ -8,8 +8,48 @@ const num = (v, d) => (v !== undefined && v !== '' && !Number.isNaN(Number(v)) ?
 export const config = {
   port: num(env.PORT, 3000),
   isProd: env.NODE_ENV === 'production',
-  // Where products, orders, settings and uploads are saved (default: database/data/).
+  // Where JSON data (if MySQL isn't set up), store settings, website content and local
+  // product media are saved (default: database/data/).
   dataDir: env.DATA_DIR || defaultDataDir(),
+
+  // MySQL / MariaDB (on Hostinger: hPanel > Databases > MySQL Databases; host is usually localhost).
+  // Leave DB_HOST empty to use JSON files instead.
+  mysql: {
+    host: env.DB_HOST || '',
+    port: num(env.DB_PORT, 3306),
+    database: env.DB_NAME || '',
+    user: env.DB_USER || '',
+    password: env.DB_PASSWORD || '',
+    ssl: env.DB_SSL === 'true'
+  },
+
+  // Cloudflare R2 for product photos and videos (not linked yet, see database/media/r2.js).
+  r2: {
+    accountId: env.R2_ACCOUNT_ID || '',
+    accessKeyId: env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY || '',
+    bucket: env.R2_BUCKET || '',
+    publicUrl: env.R2_PUBLIC_URL || ''
+  },
+
+  // Upload limits for product media.
+  media: {
+    maxImageBytes: 5 * 1024 * 1024,
+    maxVideoBytes: num(env.MAX_VIDEO_MB, 50) * 1024 * 1024,
+    maxPerProduct: 12
+  },
+
+  // Parcel details stored on each order for Shiprocket (integration comes later).
+  shipping: {
+    pickupLocation: env.SHIPROCKET_PICKUP_LOCATION || 'Primary',
+    defaultItemGrams: num(env.SHIP_DEFAULT_ITEM_GRAMS, 50),   // when a product has no weight set
+    packagingGrams: num(env.SHIP_PACKAGING_GRAMS, 100),       // box + padding
+    defaultBox: {                                           // cm, when products have no size set
+      lengthCm: num(env.SHIP_BOX_LENGTH_CM, 15),
+      breadthCm: num(env.SHIP_BOX_BREADTH_CM, 12),
+      heightCm: num(env.SHIP_BOX_HEIGHT_CM, 8)
+    }
+  },
 
   shop: {
     freeShippingOver: num(env.FREE_SHIPPING_OVER, 999),

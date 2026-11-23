@@ -5,7 +5,7 @@
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = (n) => '₹' + Math.round(n).toLocaleString('en-IN');
-  const date = (iso) => new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+  const date = (iso) => new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' });
 
   const STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
   const PAYMENT_STATUSES = ['unpaid', 'paid', 'cod', 'refunded'];
@@ -68,7 +68,7 @@
         <td>${esc(u.name)}</td>
         <td><a href="tel:+91${esc(u.phone)}">+91 ${esc(u.phone)}</a></td>
         <td>${u.role === 'admin' ? '<strong>Admin</strong>' : 'Customer'}</td>
-        <td>${new Date(u.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+        <td>${new Date(u.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}</td>
         <td class="num">${u.orders}</td>
       </tr>`).join('') : '<tr><td colspan="5" class="muted">No customers yet.</td></tr>'}</tbody>`;
   }
@@ -147,7 +147,7 @@
       <div class="dialog-head"><h2 id="orderDialogTitle">${esc(o.id)}</h2><button class="icon-close" type="button" data-close aria-label="Close">×</button></div>
       <div class="detail-grid">
         <div><h3>Customer</h3>${esc(c.name)}<br><a href="tel:+91${esc(c.phone)}">+91 ${esc(c.phone)}</a><br><a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br><a class="text-link" href="https://wa.me/91${esc(c.phone)}" target="_blank" rel="noopener">WhatsApp customer</a></div>
-        <div><h3>Ship to</h3>${esc(c.address)}<br>${esc(c.city)}, ${esc(c.state)} ${esc(c.pincode)}${c.notes ? `<br><br><strong>Note:</strong> ${esc(c.notes)}` : ''}</div>
+        <div><h3>Ship to</h3>${esc(c.address)}${c.address2 ? `<br>${esc(c.address2)}` : ''}<br>${esc(c.city)}, ${esc(c.state)} ${esc(c.pincode)}${c.notes ? `<br><br><strong>Note:</strong> ${esc(c.notes)}` : ''}${o.package ? `<br><br><span class="muted">Parcel: ${o.package.weightKg} kg · ${o.package.lengthCm}×${o.package.breadthCm}×${o.package.heightCm} cm</span>` : ''}${o.shipment && o.shipment.awb ? `<br><span class="muted">AWB ${esc(o.shipment.awb)}${o.shipment.courierName ? ` · ${esc(o.shipment.courierName)}` : ''}</span>` : ''}</div>
       </div>
       ${o.items.map((i) => `<div class="summary-row"><span>${esc(i.name)} <span class="muted">(${esc(i.id)})</span> × ${i.qty}</span><span>${money(i.total)}</span></div>`).join('')}
       ${o.discount ? `<div class="summary-row"><span>Discount (${esc(o.coupon)})</span><span class="discount">−${money(o.discount)}</span></div>` : ''}
@@ -198,6 +198,41 @@
     } catch (err) { toast(err.message); renderProducts(); }
   }
 
+  // ---------- Product photos & videos ----------
+  let editingMedia = [];
+
+  function renderMediaList() {
+    $('#pMediaList').innerHTML = editingMedia.length ? editingMedia.map((m, i) => `
+      <div class="media-tile">
+        ${m.type === 'video'
+          ? `<video src="${esc(m.url)}" muted preload="metadata" playsinline></video><span class="media-tile__badge">Video</span>`
+          : `<img src="${esc(m.url)}" alt="">`}
+        ${i === 0 && m.type === 'image' ? '<span class="media-tile__badge media-tile__badge--main">Main</span>' : ''}
+        <div class="media-tile__actions">
+          <button type="button" data-media-move="${i}" data-dir="-1" aria-label="Move earlier"${i === 0 ? ' disabled' : ''}>‹</button>
+          <button type="button" data-media-move="${i}" data-dir="1" aria-label="Move later"${i === editingMedia.length - 1 ? ' disabled' : ''}>›</button>
+          <button type="button" data-media-remove="${i}" aria-label="Remove">×</button>
+        </div>
+      </div>`).join('') : '<p class="muted media-list__empty">No photos or videos yet.</p>';
+  }
+
+  async function uploadMedia(files) {
+    for (const file of files) {
+      const isVideo = file.type.startsWith('video/');
+      const max = (isVideo ? 50 : 5) * 1024 * 1024;
+      if (file.size > max) { toast(`${file.name} is too large (max ${isVideo ? 50 : 5} MB).`); continue; }
+      toast(`Uploading ${file.name}…`);
+      try {
+        const res = await fetch('/api/admin/media', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Upload failed.');
+        editingMedia.push(data);
+        renderMediaList();
+        toast(`${file.name} uploaded. Save the product to keep it.`);
+      } catch (err) { toast(err.message); }
+    }
+  }
+
   function openProductForm(p) {
     editingId = p ? p.id : null;
     const form = $('#productForm');
@@ -209,9 +244,11 @@
       for (const el of form.elements) {
         if (!el.name || !(el.name in p)) continue;
         if (el.type === 'checkbox') el.checked = p[el.name] !== false && Boolean(p[el.name] ?? true);
-        else el.value = Array.isArray(p[el.name]) ? p[el.name].join(', ') : p[el.name];
+        else el.value = Array.isArray(p[el.name]) ? p[el.name].join(', ') : (p[el.name] ?? '');
       }
     }
+    editingMedia = p ? structuredClone(p.media || []) : [];
+    renderMediaList();
     $('#productDialog').showModal();
     $('#pName').focus();
   }
@@ -224,6 +261,7 @@
       if (!el.name) continue;
       body[el.name] = el.type === 'checkbox' ? el.checked : el.value;
     }
+    body.media = editingMedia;
     $$('.field', form).forEach((f) => f.classList.remove('has-error'));
     $$('.field__error', form).forEach((x) => { x.textContent = ''; });
     $('#productSave').disabled = true;
@@ -238,8 +276,9 @@
     } catch (err) {
       $('#productFormError').textContent = err.message;
       Object.entries(err.fields || {}).forEach(([name, msg]) => {
-        const el = form.elements[name]; if (!el) return;
-        const f = el.closest('.field'); f.classList.add('has-error'); $('.field__error', f).textContent = msg;
+        const el = form.elements[name] || $(`[data-field-name="${name}"]`, form); if (!el) return;
+        const f = el.closest ? el.closest('.field') : null; if (!f) return;
+        f.classList.add('has-error'); $(':scope > .field__error', f).textContent = msg;
       });
     } finally { $('#productSave').disabled = false; }
   }
@@ -286,17 +325,26 @@
 
     $('#addProductBtn').addEventListener('click', () => openProductForm(null));
     $('#productForm').addEventListener('submit', saveProduct);
-    $('#pImageFile').addEventListener('change', async (e) => {
-      const file = e.target.files[0]; e.target.value = '';
-      if (!file) return;
-      toast('Uploading photo…');
-      try {
-        const res = await fetch('/api/admin/uploads', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Upload failed.');
-        $('#pImage').value = data.url;
-        toast('Photo uploaded. Save the product to use it.');
-      } catch (err) { toast(err.message); }
+    $('#pMediaFile').addEventListener('change', (e) => {
+      const files = [...e.target.files]; e.target.value = '';
+      if (files.length) uploadMedia(files);
+    });
+    $('#pMediaAdd').addEventListener('click', () => {
+      const url = $('#pMediaUrl').value.trim();
+      if (!/^https:\/\/\S+$/.test(url)) { toast('Paste a link starting with https://'); return; }
+      editingMedia.push({ id: `link-${Date.now().toString(36)}`, type: $('#pMediaType').value, url, storage: 'external' });
+      $('#pMediaUrl').value = '';
+      renderMediaList();
+    });
+    $('#pMediaList').addEventListener('click', (e) => {
+      const rm = e.target.closest('[data-media-remove]');
+      if (rm) { editingMedia.splice(Number(rm.dataset.mediaRemove), 1); renderMediaList(); return; }
+      const mv = e.target.closest('[data-media-move]');
+      if (mv) {
+        const i = Number(mv.dataset.mediaMove); const j = i + Number(mv.dataset.dir);
+        [editingMedia[i], editingMedia[j]] = [editingMedia[j], editingMedia[i]];
+        renderMediaList();
+      }
     });
     $('#productsTable').addEventListener('click', (e) => {
       const ed = e.target.closest('[data-edit]'); if (ed) openProductForm(products.find((p) => p.id === ed.dataset.edit));

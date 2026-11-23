@@ -64,7 +64,7 @@
 
   function whatsappText(order, customer, items) {
     const lines = items.map((l) => `• ${l.name} (${l.id}) × ${l.qty} — ${money(l.total)}`).join('\n');
-    return `Namaste Adirudra, I've placed order ${order.id}:\n\n${lines}\n\nTotal: ${money(order.total)}\n\nName: ${customer.name}\nPhone: ${customer.phone}\nAddress: ${customer.address}, ${customer.city}, ${customer.state} ${customer.pincode}`;
+    return `Namaste Adirudra, I've placed order ${order.id}:\n\n${lines}\n\nTotal: ${money(order.total)}\n\nName: ${customer.name}\nPhone: ${customer.phone}\nAddress: ${customer.address}${customer.address2 ? `, ${customer.address2}` : ''}, ${customer.city}, ${customer.state} ${customer.pincode}`;
   }
 
   function setBusy(busy, label) {

@@ -32,26 +32,49 @@ backend/               Express server and business logic
   razorpay.js          Razorpay order creation + signature verification
   settings.js          Store settings edited in the admin (fees, contact, coupons)
   site.js              Website theme + content, validation, version history
-  uploads.js           Image upload checks
+  uploads.js           Product photo/video upload checks
   auth.js              Accounts: admin + customer groups, phone/password sign-in, sessions, rate limits
 
-database/              All storage. Swap these modules to move to Postgres/MySQL
-  index.js             What the backend imports; picks the data folder
-  db.js                Products, orders and user accounts
-  documents.js         Store settings, website content, version history
-  files.js             Uploaded images
-  json-file.js         Atomic JSON file read/write
-  seed-products.json   Starting catalogue, copied in on first run
-  data/                Live data (not in git): products, orders, settings, uploads
-test/                API and pricing tests (node:test)
+database/              All storage
+  index.js             What the backend imports; picks MySQL or JSON files
+  shapes.js            The shape of a group, user, product and order record
+  mysql/schema.sql     The 5 MySQL tables (created automatically on start)
+  mysql/db.js          MySQL / MariaDB driver
+  mysql/import-json.js One-time copy of JSON data into MySQL (npm run db:import)
+  json/db.js           JSON-file driver (same tables, for your computer and tests)
+  media/               Product photos/videos: local disk now, Cloudflare R2 later (r2.js)
+  documents.js         Store settings, website content, version history (JSON files)
+  seed-products.json   Starting catalogue, loaded into an empty products table
+  data/                Live data (not in git): JSON files, local product media
+test/                  API and pricing tests (node:test)
 ```
+
+## Database
+
+Five MySQL tables (see `database/mysql/schema.sql`), created automatically when the server starts. **All times are Indian Standard Time (IST, UTC+05:30)**, both in MySQL (what phpMyAdmin shows) and in the app, and order IDs carry the Indian date.
+
+| Table | Holds |
+|---|---|
+| `user_groups` | `admin` (one account) and `user` (customers) |
+| `users` | Name, unique mobile number, group, password hash |
+| `products` | Catalogue, stock, the list of photos/videos (`media`), and shipping details: SKU, HSN code, weight (g), packed size (cm) |
+| `orders` | Everything about an order: the account, customer name/phone/email, billing and shipping address, items (with SKU, HSN, weight), amounts, payment, parcel weight and size, and empty Shiprocket fields (order/shipment ID, AWB, courier, tracking, label, invoice) ready for the integration |
+| `settings` | One JSON value per key: `store` (fees, contact, coupons from Admin → Settings), `site` (website theme and text), `site_history` (last 15 published versions) |
+
+**Set it up on Hostinger:** hPanel → Databases → MySQL Databases → create a database and user. Then set `DB_HOST=localhost`, `DB_NAME`, `DB_USER` and `DB_PASSWORD` in the Node.js app's environment variables and restart. Copy existing JSON data in once with `npm run db:import` (safe to re-run).
+
+Without `DB_HOST`, the same tables are kept as JSON files in the data folder, which is handy for local work. Tests run on JSON files; set `TEST_DB_HOST`, `TEST_DB_NAME`, `TEST_DB_USER` and `TEST_DB_PASSWORD` to run them against an empty MySQL database instead.
+
+Locally uploaded product media stays in the data folder (`<data folder>/uploads`). Set `DATA_DIR` to a folder outside the project so redeploys can't remove it.
+
+**Images and videos:** website images (logo, hero background) are part of the code in `frontend/assets/`. Product photos and videos are uploaded from Admin → Products and saved by the media store: the server's disk (`<data folder>/uploads`) for now, Cloudflare R2 once `database/media/r2.js` is written and the `R2_*` settings are filled in. Products only store each file's URL.
 
 ### Accounts and user groups
 There are two groups, and everyone signs in with **mobile number + password** at `/login`:
 - **Admin:** exactly one account, created from `ADMIN_PHONE` and `ADMIN_PASSWORD` in `.env` when the server starts. Only this account can open `/admin`. Changing `ADMIN_PHONE` moves admin rights to that number, and the old admin becomes a normal customer. Changing `ADMIN_PASSWORD` signs the admin out everywhere. Nobody can sign up with the admin's number.
 - **Customers:** anyone can create an account on the website (name, mobile number, password of 8+ characters). Customers can't open the admin panel. **My account** (`/account`) shows their orders.
 
-Passwords are stored as salted scrypt hashes in `database/data/users.json`. Sessions are signed httpOnly cookies (30 days for customers, 12 hours for the admin). Sign-in and sign-up are rate-limited.
+Passwords are stored as salted scrypt hashes in the `users` table. Sessions are signed httpOnly cookies (30 days for customers, 12 hours for the admin). Sign-in and sign-up are rate-limited.
 
 ### Customer flow
 1. Products load from `GET /api/products`. The cart (IDs + quantities only) is kept in the browser.
@@ -66,8 +89,8 @@ Passwords are stored as salted scrypt hashes in `database/data/users.json`. Sess
 Sign in with the admin account's mobile number and password.
 - **Customers:** every registered account with its mobile number, join date and number of orders.
 - **Orders:** search, filter by status, totals at a glance, full order details, change status or payment status, and add notes such as tracking numbers. Cancelling an order puts its items back in stock.
-- **Settings:** free-shipping threshold, shipping fee, cash-on-delivery fee, max quantity per product, WhatsApp number, store email, and coupon codes (add, edit, pause or remove; % or ₹ off, optional minimum order). Changes apply to new orders immediately, no restart needed. They're saved in `database/data/settings.json`; the `.env` values are only the starting defaults.
-- **Products:** add, edit or delete products. Price, stock, featured and visibility can be edited directly in the table. A product that appears in past orders is hidden instead of deleted.
+- **Settings:** free-shipping threshold, shipping fee, cash-on-delivery fee, max quantity per product, WhatsApp number, store email, and coupon codes (add, edit, pause or remove; % or ₹ off, optional minimum order). Changes apply to new orders immediately, no restart needed. They're saved in the `settings` table (key `store`); the `.env` values are only the starting defaults.
+- **Products:** add, edit or delete products. Price, stock, featured and visibility can be edited directly in the table. Each product can have up to 12 photos and videos (upload or https:// link; reorder them, the first photo is the card image) and shipping details (SKU, HSN, weight, packed size). A product that appears in past orders is hidden instead of deleted.
 
 ### Website editor (`/admin` → Website)
 Edit the storefront's look and content with a live preview, then press **Publish**:
@@ -76,10 +99,10 @@ Edit the storefront's look and content with a live preview, then press **Publish
 - **Other pages:** the text on the shop, product, cart, checkout, order-confirmation and 404 pages. Leave a menu or footer link label empty to hide that link.
 - **Amounts in text:** write `{freeShippingOver}`, `{shippingFee}` or `{codFee}` in any text to show the current amount from Admin → Settings. Order-page text can also use `{name}`, `{email}`, `{phone}` and `{total}`.
 - **Layout:** show, hide or reorder the homepage sections.
-- **Images:** upload JPG/PNG/WebP/GIF (max 5 MB). Files are stored in `database/data/uploads/`. Product photos can be uploaded from the product form too.
+- **Images:** the logo and hero background are files in `frontend/assets/` (kept with the code). Add a file there and enter its path, e.g. `assets/hero-new.jpg`, or use an https:// link.
 - **Safety:** every value is checked on the server (colours, allowed fonts, safe links only, image paths). The last 15 published versions are kept under **Version history**, and **Reset** returns to the original design.
 
-How it works: settings live in `database/data/site.json` (defaults in `backend/site.js`). The server injects the theme and content into each page before sending it, so there's no flash of the old design. `frontend/js/site.js` fills in text marked with `data-site="…"`. The admin page itself is never themed, so a bad colour choice can't lock you out.
+How it works: the website lives in the `settings` table under `site`, and the version history under `site_history` (defaults in `backend/site.js`). The server injects the theme and content into each page before sending it, so there's no flash of the old design. `frontend/js/site.js` fills in text marked with `data-site="…"`. The admin page itself is never themed, so a bad colour choice can't lock you out.
 
 ## API
 
@@ -101,11 +124,12 @@ How it works: settings live in `database/data/site.json` (defaults in `backend/s
 | GET/PUT | `/api/admin/settings` | Store settings (fees, contact, coupons) |
 | GET/PUT | `/api/admin/site` | Website settings |
 | POST | `/api/admin/site/restore`, `/api/admin/site/reset` | Version history |
-| POST | `/api/admin/uploads` | Upload an image (raw body) |
+| POST | `/api/admin/media` | Upload a product photo or video (raw body) → media item |
+| GET | `/api/admin/groups` | User groups |
 
 ## Configuration
 
-The admin account (phone + password), session secret and Razorpay keys are set in `.env` (see `.env.example`). The WhatsApp number, store email, shipping/COD fees and coupon codes can be set there and in `backend/config.js` as starting defaults, but once you save **Admin → Settings**, the values in `database/data/settings.json` are used instead.
+The admin account (phone + password), session secret and Razorpay keys are set in `.env` (see `.env.example`). The WhatsApp number, store email, shipping/COD fees and coupon codes can be set there and in `backend/config.js` as starting defaults, but once you save **Admin → Settings**, the values in the `settings` table are used instead.
 
 ## Before going live
 

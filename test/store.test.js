@@ -1,7 +1,7 @@
 // Run with: npm test
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, copyFile, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, copyFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -12,7 +12,7 @@ process.env.RAZORPAY_KEY_ID = '';
 const { config } = await import('../backend/config.js');
 const { quote } = await import('../backend/pricing.js');
 const { validateCustomer } = await import('../backend/validate.js');
-const { createDb } = await import('../database/index.js');
+const { openDatabase } = await import('../database/index.js');
 const { createApp } = await import('../backend/app.js');
 const { createSiteStore, DEFAULTS } = await import('../backend/site.js');
 const { ensureAdmin } = await import('../backend/auth.js');
@@ -23,17 +23,23 @@ let server, base, dataDir, db, siteStore;
 before(async () => {
   dataDir = await mkdtemp(path.join(tmpdir(), 'adirudra-test-'));
   await copyFile(new URL('../database/seed-products.json', import.meta.url), path.join(dataDir, 'seed-products.json'));
-  db = createDb(dataDir);
+  // TEST_DB_* runs the same tests against a real (empty) MySQL database instead of JSON files.
+  const mysql = process.env.TEST_DB_HOST ? {
+    host: process.env.TEST_DB_HOST, port: Number(process.env.TEST_DB_PORT || 3306), database: process.env.TEST_DB_NAME,
+    user: process.env.TEST_DB_USER, password: process.env.TEST_DB_PASSWORD || ''
+  } : null;
+  db = openDatabase({ dataDir, mysql });
   await db.load();
   await ensureAdmin(db);
   process.env.DATA_DIR = dataDir;
   config.dataDir = dataDir;
-  siteStore = createSiteStore(dataDir);
+  siteStore = createSiteStore(db);
   await siteStore.load();
   server = createApp(db, siteStore).listen(0);
   base = `http://127.0.0.1:${server.address().port}`;
 });
-after(async () => { server.close(); await rm(dataDir, { recursive: true, force: true }); });
+after(async () => { server.close(); await db.close(); await rm(dataDir, { recursive: true, force: true }); });
+const stockOf = async (id) => (await db.products.get(id)).stock;
 
 const call = async (p, { method = 'GET', body, cookie } = {}) => {
   const res = await fetch(base + p, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, body: body ? JSON.stringify(body) : undefined });
@@ -86,15 +92,26 @@ test('GET /api/products hides stock counts and internal fields', async () => {
 });
 
 test('POST /api/orders prices on the server, reserves stock and protects order lookup', async () => {
-  const before = db.products.get('AR-001').stock;
+  const before = await stockOf('AR-001');
   const cookie = await customerSession();
   const r = await call('/api/orders', { method: 'POST', cookie, body: { items: [{ id: 'AR-001', qty: 2, price: 1 }], payment: 'cod', customer } });
   assert.equal(r.status, 201);
   assert.equal(r.body.total, 1499 * 2 + config.shop.codFee); // client-sent price ignored
-  assert.equal(db.products.get('AR-001').stock, before - 2);
+  assert.equal(await stockOf('AR-001'), before - 2);
 
-  const saved = JSON.parse(await readFile(path.join(dataDir, 'orders.json'), 'utf8'));
-  assert.equal(saved[0].id, r.body.id);
+  // Stored with everything the courier needs: customer, address, SKUs and the parcel.
+  const saved = await db.orders.get(r.body.id);
+  assert.equal(saved.userId, (await db.users.byPhone('9876543210')).id);
+  assert.deepEqual(saved.customer, { ...customer, phone: '9876543210', address2: '', country: 'India', notes: '' });
+  assert.equal(saved.shippingAddress, null);
+  assert.deepEqual(saved.items[0], { id: 'AR-001', sku: 'AR-001', name: 'Five Mukhi Nepal Rudraksha', hsn: '', price: 1499, qty: 2, total: 2998, weightGrams: 8.2 });
+  assert.equal(saved.package.weightKg, Math.round(8.2 * 2 + config.shipping.packagingGrams) / 1000);
+  assert.deepEqual(saved.shipment.awb, null);
+  // Times are Indian Standard Time, and the order ID carries the Indian date.
+  assert.match(saved.createdAt, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}\+05:30$/);
+  assert.ok(Math.abs(Date.parse(saved.createdAt) - Date.now()) < 60_000);
+  assert.match(saved.history[0].at, /\+05:30$/);
+  assert.equal(saved.id.slice(4, 10), saved.createdAt.slice(2, 10).replace(/-/g, ''));
 
   assert.equal((await call(`/api/orders/${r.body.id}`)).status, 404); // no token
   assert.equal((await call(`/api/orders/${r.body.id}?token=wrong`)).status, 404);
@@ -125,11 +142,14 @@ test('admin: requires login, updates orders, cancel restocks', async () => {
   const order = orders.body[0];
   assert.equal(order.token, undefined);
 
-  const stock = db.products.get('AR-001').stock;
+  const stock = await stockOf('AR-001');
   const shipped = await call(`/api/admin/orders/${order.id}`, { method: 'PATCH', cookie, body: { status: 'shipped', note: 'AWB 123' } });
   assert.equal(shipped.body.status, 'shipped');
   await call(`/api/admin/orders/${order.id}`, { method: 'PATCH', cookie, body: { status: 'cancelled' } });
-  assert.equal(db.products.get('AR-001').stock, stock + 2);
+  assert.equal(await stockOf('AR-001'), stock + 2);
+  // Saving the cancelled order again doesn't restock twice.
+  await call(`/api/admin/orders/${order.id}`, { method: 'PATCH', cookie, body: { status: 'cancelled', note: 'again' } });
+  assert.equal(await stockOf('AR-001'), stock + 2);
   const reopen = await call(`/api/admin/orders/${order.id}`, { method: 'PATCH', cookie, body: { status: 'confirmed' } });
   assert.equal(reopen.status, 400);
 });
@@ -171,6 +191,10 @@ test('site: pages are served with the saved theme and content injected', async (
   const saved = await call('/api/admin/site', { method: 'PUT', cookie, body: site });
   assert.equal(saved.status, 200);
   assert.equal(saved.body.history.length, 1);
+  // Kept in the settings table: the live site under 'site', the previous version under 'site_history'.
+  assert.equal((await db.settings.get('site')).theme.colors.walnut, '#123456');
+  assert.equal((await db.settings.get('site_history')).length, 1);
+  assert.match((await db.settings.get('site_history'))[0].savedAt, /\+05:30$/);
 
   const html = await (await fetch(base + '/')).text();
   assert.match(html, /--walnut:#123456/);
@@ -210,19 +234,50 @@ test('site: restore a previous version and reset to defaults', async () => {
   assert.deepEqual(reset.body.site, DEFAULTS);
 });
 
-test('uploads: accepts real images only and serves them', async () => {
+test('product media: photos and videos are checked, saved, listed and served', async () => {
   const cookie = await adminCookie();
+  const upload = (body, type) => fetch(base + '/api/admin/media', { method: 'POST', headers: { 'Content-Type': type, Cookie: cookie }, body });
   const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
-  const up = await fetch(base + '/api/admin/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png', Cookie: cookie }, body: png });
-  assert.equal(up.status, 201);
-  const { url } = await up.json();
-  assert.match(url, /^\/uploads\/[\w-]+\.png$/);
-  const img = await fetch(base + url);
-  assert.equal(img.status, 200);
-  const svg = await fetch(base + '/api/admin/uploads', { method: 'POST', headers: { 'Content-Type': 'image/svg+xml', Cookie: cookie }, body: '<svg onload="alert(1)"/>' });
-  assert.equal(svg.status, 400);
-  const anon = await fetch(base + '/api/admin/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: png });
-  assert.equal(anon.status, 401);
+  const mp4 = Buffer.concat([Buffer.from('00000018', 'hex'), Buffer.from('ftypisom'), Buffer.alloc(32)]);
+
+  const photo = await (await upload(png, 'image/png')).json();
+  assert.equal(photo.type, 'image');
+  assert.match(photo.url, /^\/uploads\/[\w-]+\.png$/);
+  assert.equal(photo.storage, 'local');
+  const video = await (await upload(mp4, 'video/mp4')).json();
+  assert.equal(video.type, 'video');
+  assert.equal(video.mime, 'video/mp4');
+  assert.equal((await fetch(base + video.url)).status, 200);
+
+  assert.equal((await upload('<svg onload="alert(1)"/>', 'image/svg+xml')).status, 400);
+  assert.equal((await upload(Buffer.from('not a video at all'), 'video/mp4')).status, 400);
+  assert.equal((await fetch(base + '/api/admin/media', { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: png })).status, 401);
+
+  // Attach both to a product; the store lists them, with the first photo as the card image.
+  const saved = await call('/api/admin/products/AR-004', { method: 'PATCH', cookie, body: { media: [video, photo] } });
+  assert.equal(saved.status, 200);
+  const pub = (await call('/api/products/AR-004')).body;
+  assert.deepEqual(pub.media.map((m) => m.type), ['video', 'image']);
+  assert.equal(pub.image, photo.url);
+  assert.equal((await call('/api/admin/products/AR-004', { method: 'PATCH', cookie, body: { media: [{ type: 'image', url: 'javascript:alert(1)' }] } })).status, 400);
+
+  // Removing a photo from the product deletes its file.
+  await call('/api/admin/products/AR-004', { method: 'PATCH', cookie, body: { media: [video] } });
+  assert.equal((await fetch(base + photo.url)).status, 404);
+  await call('/api/admin/products/AR-004', { method: 'PATCH', cookie, body: { media: [] } });
+});
+
+test('products: shipping details (SKU, HSN, weight, size) are validated and saved', async () => {
+  const cookie = await adminCookie();
+  const ok = await call('/api/admin/products/AR-005', { method: 'PATCH', cookie, body: { sku: 'RUD-5M-NP', hsnCode: '1404 90', weightGrams: '12.5', lengthCm: 6, breadthCm: 6, heightCm: '' } });
+  assert.equal(ok.status, 200);
+  assert.deepEqual([ok.body.sku, ok.body.hsnCode, ok.body.weightGrams, ok.body.lengthCm, ok.body.heightCm], ['RUD-5M-NP', '140490', 12.5, 6, null]);
+  const dup = await call('/api/admin/products/AR-006', { method: 'PATCH', cookie, body: { sku: 'RUD-5M-NP' } });
+  assert.equal(dup.body.fields.sku, 'Another product already uses this SKU.');
+  const bad = await call('/api/admin/products/AR-006', { method: 'PATCH', cookie, body: { hsnCode: 'abc', weightGrams: -1 } });
+  assert.deepEqual(Object.keys(bad.body.fields).sort(), ['hsnCode', 'weightGrams']);
+  await call('/api/admin/products/AR-005', { method: 'PATCH', cookie, body: { sku: '' } }); // back to the product ID
+  assert.equal((await db.products.get('AR-005')).sku, 'AR-005');
 });
 
 test('settings: admin edits fees, contact and coupons; pricing uses them at once', async () => {
@@ -252,7 +307,7 @@ test('settings: admin edits fees, contact and coupons; pricing uses them at once
   assert.equal(q.discount, Math.round(q.subtotal * 0.25));
   assert.equal((await call('/api/quote', { method: 'POST', body: { items: [{ id: 'AR-001', qty: 1 }], coupon: 'ADIRUDRA10' } })).body.couponError, 'That code is not valid.');
   assert.equal((await call('/api/quote', { method: 'POST', body: { items: [{ id: 'AR-001', qty: 1 }], coupon: 'PAUSED' } })).body.couponError, 'That code is not valid.');
-  assert.equal(JSON.parse(await readFile(path.join(dataDir, 'settings.json'), 'utf8')).shippingFee, 150);
+  assert.equal((await db.settings.get('store')).shippingFee, 150);
 
   const bad = [
     [{ shippingFee: -1 }, 'shippingFee'], [{ codFee: 'abc' }, 'codFee'], [{ email: 'not-an-email' }, 'email'], [{ whatsappNumber: '123' }, 'whatsappNumber'],
@@ -306,7 +361,7 @@ test('accounts: sign up with phone + password, sign in, sign out', async () => {
 
   // The same number can't register twice, and the stored password is hashed.
   assert.equal((await call('/api/auth/signup', { method: 'POST', body: { name: 'Other', phone: '9123456789', password: 'another-pass' } })).status, 409);
-  const stored = JSON.parse(await readFile(path.join(dataDir, 'users.json'), 'utf8')).find((u) => u.phone === '9123456789');
+  const stored = await db.users.byPhone('9123456789');
   assert.match(stored.passwordHash, /^scrypt\$/);
   assert.ok(!JSON.stringify(stored).includes('ravi-pass-123'));
 
@@ -339,6 +394,17 @@ test('accounts: orders need sign-in and are listed under the account', async () 
   assert.ok(!(await call('/api/account/orders', { cookie: other })).body.some((o) => o.id === placed.body.id));
 });
 
+test('orders: two customers buying the last item at once — only one gets it', async () => {
+  const admin = await adminCookie();
+  await call('/api/admin/products/AR-007', { method: 'PATCH', cookie: admin, body: { stock: 1 } });
+  const a = await customerSession();
+  const b = cookieOf(await call('/api/auth/signup', { method: 'POST', body: { name: 'Kiran', phone: '9811112222', password: 'kiran-pass-1' } }));
+  const order = (cookie) => call('/api/orders', { method: 'POST', cookie, body: { items: [{ id: 'AR-007', qty: 1 }], payment: 'cod', customer } });
+  const results = (await Promise.all([order(a), order(b), order(a)])).map((r) => r.status).sort();
+  assert.deepEqual(results, [201, 409, 409]);
+  assert.equal(await stockOf('AR-007'), 0);
+});
+
 test('accounts: only the one admin account can use the admin API', async () => {
   const cust = await customerSession();
   assert.equal((await call('/api/admin/orders', { cookie: cust })).status, 403);
@@ -356,7 +422,8 @@ test('accounts: only the one admin account can use the admin API', async () => {
   // Changing ADMIN_PHONE moves admin rights: the old admin becomes a normal user.
   config.admin.phone = '9876543210'; config.admin.password = 'new-admin-pass';
   await ensureAdmin(db);
-  assert.deepEqual(db.users.all().filter((u) => u.role === 'admin').map((u) => u.phone), ['9876543210']);
+  assert.deepEqual((await db.users.list()).filter((u) => u.role === 'admin').map((u) => u.phone), ['9876543210']);
+  assert.deepEqual((await db.groups.list()).map((g) => g.name), ['admin', 'user']);
   assert.equal((await call('/api/admin/orders', { cookie })).status, 403); // the old admin's session
   config.admin.phone = '9000000001'; config.admin.password = 'test-password';
   await ensureAdmin(db);

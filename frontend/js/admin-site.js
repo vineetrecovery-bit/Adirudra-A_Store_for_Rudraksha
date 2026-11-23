@@ -198,8 +198,8 @@
       case 'image':
         return `<div class="field ed-field ed-image"><span class="label">${esc(f.label)}</span>
           <div class="ed-image__row"><img class="ed-image__thumb" src="${esc(v)}" alt="" data-thumb="${path}"><div class="ed-image__actions">
-            <label class="button button--outline ed-small">Upload image<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-upload="${path}" hidden></label>
-            <input class="input" id="${id}" data-path="${path}" value="${esc(v)}" aria-label="${esc(f.label)} URL"></div></div>${hint}<span class="field__error"></span></div>`;
+            <input class="input" id="${id}" data-path="${path}" value="${esc(v)}" aria-label="${esc(f.label)} path" placeholder="assets/your-image.jpg">
+            <small class="muted">Website images are kept with the code: add the file to <code>frontend/assets/</code>, then enter <code>assets/file-name.jpg</code> here (or an https:// link).</small></div></div>${hint}<span class="field__error"></span></div>`;
       case 'presets':
         return `<div class="ed-presets">${PRESETS.map((p, i) => {
           const c = p.colors || defaults.theme.colors;
@@ -226,7 +226,7 @@
       case 'note':
         return `<p class="ed-hint ed-note">${esc(f.text)}</p>`;
       case 'history':
-        return `<div class="ed-history">${history.length ? `<ul>${history.map((h) => `<li><span>${esc(new Date(h.savedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }))}<br><small class="muted">${esc(h.label)}</small></span><button type="button" class="text-link" data-restore="${esc(h.id)}">Restore</button></li>`).join('')}</ul>` : '<p class="muted">No earlier versions yet. Each time you publish, the previous version is kept here (up to 15).</p>'}
+        return `<div class="ed-history">${history.length ? `<ul>${history.map((h) => `<li><span>${esc(new Date(h.savedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' }))}<br><small class="muted">${esc(h.label)}</small></span><button type="button" class="text-link" data-restore="${esc(h.id)}">Restore</button></li>`).join('')}</ul>` : '<p class="muted">No earlier versions yet. Each time you publish, the previous version is kept here (up to 15).</p>'}
           <button type="button" class="text-link ed-reset" id="resetSite">Reset everything to the original design</button></div>`;
       default: return '';
     }
@@ -348,19 +348,6 @@
     } catch (err) { toast(err.message); }
   }
 
-  async function upload(path, file) {
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { showFieldError(path, 'That image is larger than 5 MB.'); return; }
-    toast('Uploading…');
-    try {
-      const r = await api('/uploads', { method: 'POST', raw: file, type: file.type || 'application/octet-stream' });
-      set(draft, path, r.url);
-      $$(`#edPanel [data-path="${CSS.escape(path)}"]`).forEach((el) => { el.value = r.url; });
-      const thumb = $(`#edPanel [data-thumb="${CSS.escape(path)}"]`); if (thumb) thumb.src = r.url;
-      changed();
-      toast('Image uploaded. Publish to make it live.');
-    } catch (err) { showFieldError(path, err.message); }
-  }
 
   // ---------- Events ----------
   function onInput(e) {
@@ -449,7 +436,6 @@
 
     panel.addEventListener('input', onInput);
     panel.addEventListener('change', (e) => {
-      if (e.target.dataset.upload) { upload(e.target.dataset.upload, e.target.files[0]); e.target.value = ''; return; }
       if (e.target.dataset.sectionToggle !== undefined) { draft.sections[Number(e.target.dataset.sectionToggle)].enabled = e.target.checked; changed(); return; }
       // Selects and checkboxes fire change, not always input.
       if (e.target.matches('select, input[type=checkbox]')) onInput(e);

@@ -22,8 +22,22 @@
     const inCart = Cart.qtyOf(p.id);
     const freeOver = Store.CONFIG.freeShippingOver;
 
+    // Photos and videos: one large view plus thumbnails when there's more than one.
+    const media = p.media || [];
+    const mediaView = (m) => (m.type === 'video'
+      ? `<video src="${esc(m.url)}" controls playsinline preload="metadata" aria-label="${esc(p.name)} video"></video>`
+      : `<img src="${esc(m.url)}" alt="${esc(p.name)}">`);
+    const badge = p.rarity !== 'Common' ? `<span class="badge${p.rarity.includes('Rare') ? ' badge--dark' : ''}">${esc(p.rarity)}</span>` : '';
+    const gallery = media.length > 1 ? `<div class="pdp__thumbs" role="list">${media.map((m, i) => `
+        <button type="button" class="pdp__thumb" data-media="${i}" role="listitem" aria-label="Show ${m.type === 'video' ? 'video' : 'photo'} ${i + 1}"${i === 0 ? ' aria-current="true"' : ''}>
+          ${m.type === 'video' ? `<video src="${esc(m.url)}" muted preload="metadata" playsinline></video><span class="pdp__thumb-play" aria-hidden="true">▶</span>` : `<img src="${esc(m.url)}" alt="" loading="lazy">`}
+        </button>`).join('')}</div>` : '';
+
     $('#pdp').innerHTML = `<div class="pdp">
-      <div class="pdp__visual">${visual(p)}${p.rarity !== 'Common' ? `<span class="badge${p.rarity.includes('Rare') ? ' badge--dark' : ''}">${esc(p.rarity)}</span>` : ''}</div>
+      <div class="pdp__media">
+        <div class="pdp__visual" id="pdpVisual">${media.length ? mediaView(media[0]) : visual(p)}${badge}</div>
+        ${gallery}
+      </div>
       <div class="pdp__info">
         <p class="kicker">${esc(p.type)} · ${esc(p.origin)}</p>
         <h1>${esc(p.name)}</h1>
@@ -61,6 +75,15 @@
     const related = Store.products.filter((x) => x.id !== p.id && (x.type === p.type || x.origin === p.origin)).slice(0, 3);
     if (related.length) $('#related').innerHTML = related.map(productCard).join('');
     else $('#relatedSection').hidden = true;
+
+    // Thumbnail click: show that photo/video in the large view (works for sold-out items too).
+    $('#pdp').addEventListener('click', (e) => {
+      const thumb = e.target.closest('[data-media]'); if (!thumb) return;
+      const visual = $('#pdpVisual');
+      visual.querySelector('img, video, .placeholder')?.remove();
+      visual.insertAdjacentHTML('afterbegin', mediaView(media[Number(thumb.dataset.media)]));
+      $('#pdp').querySelectorAll('[data-media]').forEach((b) => b.toggleAttribute('aria-current', b === thumb));
+    });
 
     if (!p.inStock) return;
     const qtyInput = $('#qty');

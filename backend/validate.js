@@ -11,9 +11,11 @@ export function validateCustomer(input = {}) {
     phone: str(input.phone, 20).replace(/\D/g, '').replace(/^(91|0)(?=\d{10}$)/, ''),
     email: str(input.email, 150).toLowerCase(),
     address: str(input.address, 300),
+    address2: str(input.address2, 300),
     city: str(input.city, 80),
     state: str(input.state, 80),
     pincode: str(input.pincode, 10).replace(/\D/g, ''),
+    country: 'India',
     notes: str(input.notes, 500)
   };
   const errors = {};
@@ -25,6 +27,28 @@ export function validateCustomer(input = {}) {
   if (!INDIAN_STATES.includes(c.state)) errors.state = 'Please select your state.';
   if (!/^[1-9]\d{5}$/.test(c.pincode)) errors.pincode = 'Enter a valid 6-digit PIN code.';
   return Object.keys(errors).length ? { errors } : { value: c };
+}
+
+const MAX_MEDIA = 12;
+// A media URL must be an uploaded file, an R2/https link, or a file shipped with the code.
+const SAFE_MEDIA_URL = /^(https:\/\/[^\s"'<>]+|\/?assets\/[\w./-]+|\/uploads\/[\w.-]+)$/;
+
+/** Validates a product's photo/video list. Returns { value } or { error }. */
+export function validateMedia(list) {
+  if (!Array.isArray(list)) return { error: 'Media must be a list.' };
+  if (list.length > MAX_MEDIA) return { error: `A product can have up to ${MAX_MEDIA} photos and videos.` };
+  const value = [];
+  for (const m of list) {
+    const url = str(m && m.url, 500);
+    if (!url || !SAFE_MEDIA_URL.test(url) || url.includes('..')) return { error: 'Upload a photo or video, or use an https:// link.' };
+    const type = m.type === 'video' ? 'video' : 'image';
+    const storage = ['local', 'r2', 'external'].includes(m.storage) ? m.storage : (url.startsWith('/uploads/') ? 'local' : 'external');
+    const key = typeof m.key === 'string' && /^[\w./-]{1,200}$/.test(m.key) && !m.key.includes('..') ? m.key : null;
+    const mime = typeof m.mime === 'string' && /^(image|video)\/[\w.+-]+$/.test(m.mime) ? m.mime : null;
+    const size = Number.isFinite(Number(m.size)) && Number(m.size) > 0 ? Math.floor(Number(m.size)) : null;
+    value.push({ id: str(m.id, 60) || `m${value.length + 1}`, type, url, storage, key, mime, size });
+  }
+  return { value };
 }
 
 const PRODUCT_TYPES = ['Loose Bead', 'Mala', 'Bracelet', 'Pendant'];
@@ -49,9 +73,28 @@ export function validateProduct(input = {}, { partial = false } = {}) {
 
   for (const k of ['origin', 'size', 'weight', 'verification']) if (need(k)) out[k] = str(input[k], 80);
   if (need('description')) out.description = str(input.description, 2000);
-  if (need('image')) {
-    out.image = str(input.image, 500);
-    if (out.image && (!/^(https:\/\/[^\s"'<>]+|\/?assets\/[\w./-]+|\/uploads\/[\w.-]+)$/.test(out.image) || out.image.includes('..'))) errors.image = 'Upload an image or use an https:// link.';
+  // Photos and videos. Older clients send a single `image`; it becomes a one-item media list.
+  if (has('media') || (has('image') && !has('media')) || !partial) {
+    const list = has('media') ? input.media : (str(input.image, 500) ? [{ type: 'image', url: str(input.image, 500) }] : []);
+    const m = validateMedia(list);
+    if (m.error) errors.media = m.error; else out.media = m.value;
+  }
+  if (need('sku')) {
+    out.sku = str(input.sku, 64);
+    if (out.sku && !/^[\w-]+$/.test(out.sku)) errors.sku = 'Use letters, numbers, - and _ only.';
+  }
+  if (need('hsnCode')) {
+    out.hsnCode = str(input.hsnCode, 16).replace(/\s/g, '');
+    if (out.hsnCode && !/^\d{4,8}$/.test(out.hsnCode)) errors.hsnCode = 'HSN code is 4–8 digits.';
+  }
+  // Shipping weight (grams) and size (cm) of one unit. Empty = use the store defaults.
+  for (const [k, label, max] of [['weightGrams', 'Weight', 50000], ['lengthCm', 'Length', 300], ['breadthCm', 'Breadth', 300], ['heightCm', 'Height', 300]]) {
+    if (!need(k)) continue;
+    const raw = input[k];
+    if (raw === undefined || raw === null || raw === '') { out[k] = null; continue; }
+    const v = Number(raw);
+    if (!Number.isFinite(v) || v <= 0 || v > max) errors[k] = `${label} must be a number above 0.`;
+    else out[k] = Math.round(v * 100) / 100;
   }
   if (need('keywords')) {
     const kw = Array.isArray(input.keywords) ? input.keywords : String(input.keywords || '').split(',');

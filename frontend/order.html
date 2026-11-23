@@ -62,14 +62,14 @@
           <div class="order-box">
             <div class="order-box__head">
               <span>Order <strong>${esc(order.id)}</strong> · ${esc(statusText)}</span>
-              <span class="muted">${new Date(order.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+              <span class="muted">${new Date(order.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })}</span>
             </div>
             ${order.items.map((i) => `<div class="summary-row"><span>${esc(i.name)} × ${i.qty}</span><span>${money(i.total)}</span></div>`).join('')}
             ${order.discount ? `<div class="summary-row"><span>Discount (${esc(order.coupon)})</span><span class="discount">−${money(order.discount)}</span></div>` : ''}
             <div class="summary-row"><span>Shipping</span><span>${order.shipping ? money(order.shipping) : 'Free'}</span></div>
             ${order.codFee ? `<div class="summary-row"><span>COD fee</span><span>${money(order.codFee)}</span></div>` : ''}
             <div class="summary-row summary-row--total"><span>Total</span><span>${money(order.total)}</span></div>
-            <p class="muted" style="margin:16px 0 0;font-size:13px"><strong style="color:var(--ink)">Delivering to</strong><br>${esc(c.name)}, ${esc(c.address)}, ${esc(c.city)}, ${esc(c.state)} ${esc(c.pincode)}</p>
+            <p class="muted" style="margin:16px 0 0;font-size:13px"><strong style="color:var(--ink)">Delivering to</strong><br>${esc(c.name)}, ${esc(c.address)}${c.address2 ? `, ${esc(c.address2)}` : ''}, ${esc(c.city)}, ${esc(c.state)} ${esc(c.pincode)}</p>
           </div>
           <div class="confirm__actions"><a class="button button--dark" href="shop.html">Continue shopping</a><a class="button button--outline" href="index.html">Back to home</a></div>`;
 
