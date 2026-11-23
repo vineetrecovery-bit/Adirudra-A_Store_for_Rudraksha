@@ -1,8 +1,7 @@
 // Website settings: theme (colours, fonts, rounding) and editable content.
-// Stored in data/site.json; edited from Admin > Website. Every save is validated
+// Stored in the database (site.json); edited from Admin > Website. Every save is validated
 // against DEFAULTS (same shape, same types) so the storefront can always render it.
-import { readFile, writeFile, rename, access } from 'node:fs/promises';
-import path from 'node:path';
+import { createDocuments } from '../database/index.js';
 
 export const HEADING_FONTS = ['Cormorant Garamond', 'Playfair Display', 'EB Garamond', 'Lora', 'Cinzel', 'Marcellus', 'DM Serif Display', 'Libre Baskerville'];
 export const BODY_FONTS = ['Inter', 'DM Sans', 'Lato', 'Mulish', 'Nunito Sans', 'Poppins', 'Source Sans 3', 'Work Sans'];
@@ -210,39 +209,31 @@ export function fontsUrl(theme) {
 
 // ---------- Storage with version history ----------
 export function createSiteStore(dataDir) {
-  const file = path.join(dataDir, 'site.json');
-  const historyFile = path.join(dataDir, 'site-history.json');
+  const docs = createDocuments(dataDir);
   let site = structuredClone(DEFAULTS);
   let history = []; // [{ id, savedAt, site }], newest first, max 15
-  let queue = Promise.resolve();
-
-  const writeAtomic = (target, data) => {
-    queue = queue.then(async () => {
-      const tmp = `${target}.${process.pid}.tmp`;
-      await writeFile(tmp, JSON.stringify(data, null, 2) + '\n');
-      await rename(tmp, target);
-    });
-    return queue;
-  };
 
   async function load() {
     try {
-      await access(file);
-      const stored = JSON.parse(await readFile(file, 'utf8'));
-      // Re-validate so new default fields are filled in after upgrades.
-      const v = validateSite(stored);
-      site = v.value || structuredClone(DEFAULTS);
-      if (v.error) console.warn(`site.json: ${v.error} (${v.field}); using defaults for the store look.`);
+      const stored = await docs.site.read();
+      if (stored === undefined) {
+        site = structuredClone(DEFAULTS);
+      } else {
+        // Re-validate so new default fields are filled in after upgrades.
+        const v = validateSite(stored);
+        site = v.value || structuredClone(DEFAULTS);
+        if (v.error) console.warn(`site.json: ${v.error} (${v.field}); using defaults for the store look.`);
+      }
     } catch { site = structuredClone(DEFAULTS); }
-    try { history = JSON.parse(await readFile(historyFile, 'utf8')); } catch { history = []; }
+    try { history = (await docs.siteHistory.read()) ?? []; } catch { history = []; }
   }
 
   async function save(next, label = 'Saved') {
     history.unshift({ id: Date.now().toString(36), savedAt: new Date().toISOString(), label, site });
     history = history.slice(0, 15);
     site = next;
-    await writeAtomic(historyFile, history);
-    await writeAtomic(file, site);
+    await docs.siteHistory.write(history);
+    await docs.site.write(site);
     return site;
   }
 

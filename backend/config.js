@@ -1,6 +1,6 @@
 // Store settings. Values come from environment variables (.env) with sensible defaults.
 import crypto from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { defaultDataDir } from '../database/index.js';
 
 const env = process.env;
 const num = (v, d) => (v !== undefined && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : d);
@@ -8,7 +8,8 @@ const num = (v, d) => (v !== undefined && v !== '' && !Number.isNaN(Number(v)) ?
 export const config = {
   port: num(env.PORT, 3000),
   isProd: env.NODE_ENV === 'production',
-  dataDir: env.DATA_DIR || fileURLToPath(new URL('../data/', import.meta.url)),
+  // Where products, orders, settings and uploads are saved (default: database/data/).
+  dataDir: env.DATA_DIR || defaultDataDir(),
 
   shop: {
     freeShippingOver: num(env.FREE_SHIPPING_OVER, 999),

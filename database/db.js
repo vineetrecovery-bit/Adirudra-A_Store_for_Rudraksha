@@ -1,38 +1,35 @@
-// Tiny JSON-file database. Data is held in memory and written to disk atomically
-// (write to a temp file, then rename) through a single queue so writes never interleave.
+// Products and orders. Data is held in memory and saved to JSON files in the data folder.
 // Good for a single-server shop; swap this module for Postgres/SQLite when you outgrow it.
-import { readFile, writeFile, rename, copyFile, access, mkdir } from 'node:fs/promises';
+// The rest of the app only uses the small interface returned by createDb().
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createJsonFile } from './json-file.js';
+
+// Starting catalogue, copied in the first time the store runs.
+export const SEED_PRODUCTS = fileURLToPath(new URL('./seed-products.json', import.meta.url));
 
 export function createDb(dataDir) {
   const files = {
-    products: path.join(dataDir, 'products.json'),
-    orders: path.join(dataDir, 'orders.json')
+    products: createJsonFile(path.join(dataDir, 'products.json')),
+    orders: createJsonFile(path.join(dataDir, 'orders.json'))
   };
   const state = { products: [], orders: [] };
-  let queue = Promise.resolve();
-
-  async function exists(file) {
-    try { await access(file); return true; } catch { return false; }
-  }
 
   async function load() {
-    await mkdir(dataDir, { recursive: true });
-    if (!(await exists(files.products))) await copyFile(path.join(dataDir, 'seed-products.json'), files.products);
-    if (!(await exists(files.orders))) await writeFile(files.orders, '[]\n');
-    state.products = JSON.parse(await readFile(files.products, 'utf8'));
-    state.orders = JSON.parse(await readFile(files.orders, 'utf8'));
+    const products = await files.products.read();
+    if (products === undefined) {
+      state.products = await createJsonFile(SEED_PRODUCTS).read([]);
+      await files.products.write(state.products);
+    } else {
+      state.products = products;
+    }
+
+    const orders = await files.orders.read();
+    state.orders = orders ?? [];
+    if (orders === undefined) await files.orders.write(state.orders);
   }
 
-  function persist(name) {
-    const snapshot = JSON.stringify(state[name], null, 2) + '\n';
-    queue = queue.then(async () => {
-      const tmp = `${files[name]}.${process.pid}.tmp`;
-      await writeFile(tmp, snapshot);
-      await rename(tmp, files[name]);
-    });
-    return queue;
-  }
+  const persist = (name) => files[name].write(state[name]);
 
   return {
     load,

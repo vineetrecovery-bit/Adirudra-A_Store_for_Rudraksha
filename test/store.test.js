@@ -8,19 +8,19 @@ import crypto from 'node:crypto';
 
 process.env.ADMIN_PASSWORD = 'test-password';
 process.env.RAZORPAY_KEY_ID = '';
-const { config } = await import('../src/config.js');
-const { quote } = await import('../src/pricing.js');
-const { validateCustomer } = await import('../src/validate.js');
-const { createDb } = await import('../src/db.js');
-const { createApp } = await import('../src/app.js');
-const { createSiteStore, DEFAULTS } = await import('../src/site.js');
+const { config } = await import('../backend/config.js');
+const { quote } = await import('../backend/pricing.js');
+const { validateCustomer } = await import('../backend/validate.js');
+const { createDb } = await import('../database/index.js');
+const { createApp } = await import('../backend/app.js');
+const { createSiteStore, DEFAULTS } = await import('../backend/site.js');
 
 const customer = { name: 'Asha Verma', phone: '+91 98765 43210', email: 'asha@example.com', address: '12 MG Road', city: 'Jaipur', state: 'Rajasthan', pincode: '302001' };
 
 let server, base, dataDir, db, siteStore;
 before(async () => {
   dataDir = await mkdtemp(path.join(tmpdir(), 'adirudra-test-'));
-  await copyFile(new URL('../data/seed-products.json', import.meta.url), path.join(dataDir, 'seed-products.json'));
+  await copyFile(new URL('../database/seed-products.json', import.meta.url), path.join(dataDir, 'seed-products.json'));
   db = createDb(dataDir);
   await db.load();
   process.env.DATA_DIR = dataDir;
@@ -135,7 +135,7 @@ test('admin: create, edit and delete products with validation', async () => {
 
 test('verifies Razorpay signatures', async () => {
   config.razorpay.keySecret = 'secret';
-  const { verifyPaymentSignature } = await import('../src/razorpay.js');
+  const { verifyPaymentSignature } = await import('../backend/razorpay.js');
   const signature = crypto.createHmac('sha256', 'secret').update('order_1|pay_1').digest('hex');
   assert.equal(verifyPaymentSignature({ orderId: 'order_1', paymentId: 'pay_1', signature }), true);
   assert.equal(verifyPaymentSignature({ orderId: 'order_1', paymentId: 'pay_2', signature }), false);

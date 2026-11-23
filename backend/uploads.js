@@ -1,7 +1,9 @@
 // Image uploads for the site editor (hero image, logo, product photos).
-import { writeFile, mkdir } from 'node:fs/promises';
-import path from 'node:path';
+// The image is checked here; saving it is the database layer's job.
 import crypto from 'node:crypto';
+import { saveFile, uploadsDir } from '../database/index.js';
+
+export { uploadsDir };
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
@@ -14,17 +16,10 @@ function detectImage(buf) {
   return null; // SVG is deliberately not accepted: it can carry scripts.
 }
 
-export function uploadsDir(dataDir) {
-  return path.join(dataDir, 'uploads');
-}
-
 export async function saveUpload(dataDir, buf) {
   if (!Buffer.isBuffer(buf) || buf.length === 0) return { error: 'No image received.' };
   const ext = detectImage(buf);
   if (!ext) return { error: 'Please upload a JPG, PNG, WebP or GIF image.' };
-  const dir = uploadsDir(dataDir);
-  await mkdir(dir, { recursive: true });
   const name = `${Date.now().toString(36)}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
-  await writeFile(path.join(dir, name), buf);
-  return { url: `/uploads/${name}` };
+  return { url: await saveFile(dataDir, name, buf) };
 }

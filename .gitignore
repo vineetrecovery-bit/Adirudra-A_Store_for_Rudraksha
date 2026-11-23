@@ -1,9 +1,6 @@
 node_modules/
 .env
-data/products.json
-data/orders.json
-data/*.tmp
-data/site.json
-data/site-history.json
-data/uploads/
-data/settings.json
+# Live data (products, orders, settings, uploads). Never commit it.
+database/data/
+data/
+*.tmp

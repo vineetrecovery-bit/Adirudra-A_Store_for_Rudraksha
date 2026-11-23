@@ -1,11 +1,10 @@
 // Store settings edited from Admin > Settings: shipping and COD fees, contact details,
 // order limits and coupon codes. Values from .env / config.js are the starting defaults;
-// anything saved in the admin is stored in data/settings.json and takes precedence.
+// anything saved in the admin is stored in the database (settings.json) and takes precedence.
 // Saved settings are applied to the shared `config` object, so pricing and checkout use
 // them straight away (no restart needed).
-import { readFile, writeFile, rename } from 'node:fs/promises';
-import path from 'node:path';
 import { config } from './config.js';
+import { createDocuments } from '../database/index.js';
 
 const MAX_COUPONS = 50;
 
@@ -94,14 +93,14 @@ function apply(s) {
 }
 
 export function createSettingsStore(dataDir) {
-  const file = path.join(dataDir, 'settings.json');
+  const doc = createDocuments(dataDir).settings;
   let current = null; // full settings incl. inactive coupons; null = nothing saved yet
-  let queue = Promise.resolve();
 
   return {
     async load() {
       let stored;
-      try { stored = JSON.parse(await readFile(file, 'utf8')); } catch { return; } // no file: keep .env defaults
+      try { stored = await doc.read(); } catch { return; }
+      if (stored === undefined) return; // nothing saved yet: keep .env defaults
       const v = validateSettings(stored);
       if (v.error) { console.warn(`settings.json: ${v.error} (${v.field}); using .env defaults.`); return; }
       current = v.value;
@@ -111,12 +110,7 @@ export function createSettingsStore(dataDir) {
     async save(next) {
       current = next;
       apply(current);
-      queue = queue.then(async () => {
-        const tmp = `${file}.${process.pid}.tmp`;
-        await writeFile(tmp, JSON.stringify(current, null, 2) + '\n');
-        await rename(tmp, file);
-      });
-      await queue;
+      await doc.write(current);
       return current;
     }
   };

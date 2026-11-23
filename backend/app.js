@@ -13,7 +13,7 @@ import { createSettingsStore, validateSettings } from './settings.js';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
+const PUBLIC_DIR = fileURLToPath(new URL('../frontend/', import.meta.url));
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
 const PAYMENT_STATUSES = ['unpaid', 'paid', 'cod', 'refunded'];
