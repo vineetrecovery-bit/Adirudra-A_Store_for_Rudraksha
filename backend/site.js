@@ -12,7 +12,7 @@ export const DEFAULTS = {
   theme: {
     colors: {
       paper: '#f8f5ef', surface: '#fffdf9', ink: '#241b15', muted: '#6f6258', line: '#e4d9cc',
-      walnut: '#2d211a', bronze: '#80552a', gold: '#d5ad7c', dark: '#20150f', onPrimary: '#ffffff'
+      walnut: '#3a2b22', bronze: '#80552a', gold: '#d5ad7c', dark: '#2b1d15', onPrimary: '#ffffff'
     },
     fonts: { heading: 'Cormorant Garamond', body: 'Inter' },
     radius: 0

@@ -116,7 +116,7 @@
         description: `Order ${orderId}`,
         image: new URL('assets/logo.svg', location.href).href,
         prefill: { name: customer.name, email: customer.email, contact: customer.phone },
-        theme: { color: '#2d211a' },
+        theme: { color: '#3a2b22' },
         handler: (resp) => api(`/orders/${encodeURIComponent(orderId)}/pay`, { method: 'POST', body: { token, ...resp } }).then(() => resolve('paid'), reject),
         modal: { ondismiss: () => resolve('dismissed') }
       });
