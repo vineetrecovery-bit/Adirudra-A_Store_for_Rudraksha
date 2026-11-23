@@ -15,8 +15,8 @@ export const config = {
     freeShippingOver: num(env.FREE_SHIPPING_OVER, 999),
     shippingFee: num(env.SHIPPING_FEE, 99),
     codFee: num(env.COD_FEE, 49),
-    whatsappNumber: (env.WHATSAPP_NUMBER || '').replace(/\D/g, ''),
-    email: env.STORE_EMAIL || 'hello@adirudra.com',
+    whatsappNumber: (env.WHATSAPP_NUMBER || '918527810632').replace(/\D/g, ''),
+    email: env.STORE_EMAIL || 'adirudra.info@gmail.com',
     maxQtyPerItem: 10
   },
 
