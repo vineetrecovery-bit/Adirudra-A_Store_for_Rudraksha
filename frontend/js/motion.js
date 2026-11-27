@@ -17,36 +17,113 @@
   const ready = () => html.classList.add('is-ready');
 
   // ---------- Opening intro ----------
+  // A line doodle of Lord Shiva draws itself; a tear falls from his eye and becomes a rudraksha,
+  // then the view zooms into the bead and the website opens through it.
+  const SHIVA = [
+    // matted hair (jata) with coils, and the Ganga springing from it
+    'M168 118C160 90 170 52 200 40C230 52 240 90 232 118', 'M176 100C188 92 212 92 224 100', 'M180 78C192 70 208 70 220 78', 'M188 58C196 53 204 53 212 58',
+    'M200 40C196 28 204 20 200 8', 'M200 22C190 14 182 18 178 26', 'M200 22C210 14 218 18 222 26',
+    // crescent moon
+    'M156 70A15 15 0 1 0 178 96A12 12 0 1 1 156 70Z',
+    // face, hairline, locks of hair
+    'M200 112C238 112 262 142 262 186C262 232 236 268 200 272C164 268 138 232 138 186C138 142 162 112 200 112Z',
+    'M142 168C146 134 172 120 200 122C228 120 254 134 258 168',
+    'M146 140C120 170 124 230 112 290C106 320 112 350 104 380', 'M156 124C132 150 138 200 128 250',
+    'M254 140C280 170 276 230 288 290C294 320 288 350 296 380', 'M244 124C268 150 262 200 272 250',
+    // tripundra (three lines of ash)
+    'M172 146Q200 141 228 146', 'M170 153Q200 148 230 153', 'M172 160Q200 155 228 160',
+    // brows, eyes closed in meditation, lashes, nose, lips
+    'M164 176Q178 168 192 174', 'M208 174Q222 168 236 176',
+    'M166 190Q179 198 192 190', 'M208 190Q221 198 234 190',
+    'M172 194l-2 5M179 196v5M186 194l2 5', 'M214 194l-2 5M221 196v5M228 194l2 5',
+    'M200 182C198 196 196 206 194 214C197 218 203 218 206 214',
+    'M184 234Q192 230 200 234Q208 230 216 234', 'M188 238Q200 246 212 238',
+    // ears and earrings
+    'M138 180C128 178 126 200 140 206', 'M262 180C272 178 274 200 260 206',
+    'M128 214a6 6 0 1 0 12 0a6 6 0 1 0-12 0', 'M260 214a6 6 0 1 0 12 0a6 6 0 1 0-12 0',
+    // neck and shoulders
+    'M180 266L178 296', 'M220 266L222 296',
+    'M178 296C150 302 112 312 92 340C80 360 76 400 74 470', 'M222 296C250 302 288 312 308 340C320 360 324 400 326 470',
+    // serpent (Vasuki) around the neck
+    'M150 306C152 296 160 292 168 300C180 318 220 318 232 300C244 290 252 272 258 264',
+    'M252 266C250 248 274 248 272 266C268 272 256 272 252 266Z',
+    // trishul with damaru
+    'M340 470L340 100', 'M318 100Q340 112 362 100', 'M318 100C314 84 318 70 324 60', 'M362 100C366 84 362 70 356 60',
+    'M340 100V52M334 62L340 50L346 62', 'M328 138H352L340 152ZM328 166H352L340 152Z'
+  ];
+  // Rudraksha mala on the chest
+  const MALA = Array.from({ length: 11 }, (_, i) => {
+    const t = i / 10;
+    const x = (1 - t) ** 2 * 160 + 2 * (1 - t) * t * 200 + t * t * 240;
+    const y = (1 - t) ** 2 * 318 + 2 * (1 - t) * t * 410 + t * t * 318;
+    return `<circle class="s" pathLength="1" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" style="--d:${1700 + i * 40}ms"/>`;
+  }).join('');
+
   function runIntro() {
     try { sessionStorage.setItem('adr_intro_seen', '1'); } catch { /* ignore */ }
     const el = document.createElement('div');
     el.className = 'intro';
     el.setAttribute('role', 'presentation');
     el.innerHTML = `<div class="intro__inner">
-        <svg class="intro__logo" viewBox="0 0 64 64" aria-hidden="true">
-          <path pathLength="1" d="M32 8v41M21 20c0 9 4 14 11 14s11-5 11-14M21 20v-7m22 7v-7M25 50h14"/>
-          <path pathLength="1" d="M16 53l16-37 16 37M22 41h20"/>
+        <svg class="intro__art" viewBox="0 0 400 500" aria-hidden="true">
+          <defs>
+            <radialGradient id="introBead" cx="38%" cy="34%" r="70%">
+              <stop offset="0" stop-color="#b47a4c"/><stop offset=".55" stop-color="#7a4022"/><stop offset="1" stop-color="#3a1b0c"/>
+            </radialGradient>
+          </defs>
+          <g class="intro__shiva">
+            ${SHIVA.map((d, i) => `<path class="s" pathLength="1" d="${d}" style="--d:${i * 42}ms"/>`).join('')}
+            <path class="s intro__third-eye" pathLength="1" d="M200 142C205 147 205 159 200 164C195 159 195 147 200 142Z" style="--d:${SHIVA.length * 42}ms"/>
+            ${MALA}
+          </g>
+          <g transform="translate(214 199)"><g class="intro__tear"><path class="intro__drop" d="M0 0C4 6 7 11 7 15A7 7 0 1 1-7 15C-7 11-4 6 0 0Z"/></g></g>
+          <g transform="translate(214 446)">
+            <circle class="intro__halo" r="36"/>
+            <g class="intro__bead">
+              <circle class="intro__bead-core" r="22" fill="url(#introBead)"/>
+              <path d="M0-22C-9-12-9 12 0 22M0-22C9-12 9 12 0 22M0-22V22M-7-20C-17-8-17 8-7 20M7-20C17-8 17 8 7 20"/>
+              <circle r="22" class="intro__bead-rim"/>
+            </g>
+            <circle class="intro__ripple" r="22"/>
+          </g>
         </svg>
+        <p class="intro__tag">Born of Shiva&rsquo;s tears</p>
         <div class="intro__word" aria-hidden="true">${'ADIRUDRA'.split('').map((c, i) => `<span style="--i:${i}">${c}</span>`).join('')}</div>
-        <p class="intro__tag">Sacred beads, honestly sourced</p>
-        <span class="intro__bar"></span>
       </div>
       <span class="intro__skip">Click to skip</span>`;
     document.body.prepend(el);
 
+    const timers = [];
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
     let done = false;
-    const finish = () => {
+    const end = (curtain) => {
       if (done) return;
       done = true;
-      el.classList.add('is-leaving');
+      timers.forEach(clearTimeout);
+      if (curtain) el.classList.add('is-leaving');
       html.classList.remove('intro-play');
-      // Start the hero animation as the curtain lifts.
-      setTimeout(ready, 250);
-      setTimeout(() => el.remove(), 1000);
+      setTimeout(ready, curtain ? 250 : 150);
+      setTimeout(() => el.remove(), curtain ? 1000 : 1300);
     };
-    const timer = setTimeout(finish, 2300);
-    el.addEventListener('click', () => { clearTimeout(timer); finish(); });
-    document.addEventListener('keydown', () => { clearTimeout(timer); finish(); }, { once: true });
+
+    // Zoom in until the bead fills the screen, centred.
+    at(4700, () => {
+      const art = el.querySelector('.intro__art');
+      const r = el.querySelector('.intro__bead-core').getBoundingClientRect();
+      const box = art.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const scale = (Math.hypot(window.innerWidth, window.innerHeight) / r.width) * 1.2;
+      art.style.transformOrigin = `${cx - box.left}px ${cy - box.top}px`;
+      el.classList.add('is-zooming');
+      art.animate([{ transform: 'none' }, { transform: `translate(${window.innerWidth / 2 - cx}px, ${window.innerHeight / 2 - cy}px) scale(${scale})` }],
+        { duration: 1100, easing: 'cubic-bezier(.7,0,.25,1)', fill: 'forwards' });
+    });
+    // Open the website through the centre of the bead.
+    at(5650, () => { el.classList.add('is-opening'); end(false); });
+
+    const skip = () => end(true);
+    el.addEventListener('click', skip);
+    document.addEventListener('keydown', skip, { once: true });
   }
 
   // ---------- Hero headline: wrap each word so it can slide up ----------
