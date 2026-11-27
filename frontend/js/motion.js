@@ -5,13 +5,16 @@
   const html = document.documentElement;
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   // No motion for reduced-motion users or inside the admin's live preview: everything stays static and visible.
-  if (reduceMotion || new URLSearchParams(location.search).has('preview')) return;
+  // Adding ?intro to any page URL always replays the opening intro (handy for checking it).
+  const query = new URLSearchParams(location.search);
+  const forceIntro = query.has('intro');
+  if ((reduceMotion && !forceIntro) || query.has('preview')) return;
 
   html.classList.add('motion');
 
   // The intro plays on the first page opened in a browser session.
   let playIntro = false;
-  try { playIntro = !sessionStorage.getItem('adr_intro_seen'); } catch { /* storage blocked: skip intro */ }
+  try { playIntro = forceIntro || !sessionStorage.getItem('adr_intro_seen'); } catch { playIntro = forceIntro; /* storage blocked */ }
   if (playIntro) html.classList.add('intro-play');
 
   const ready = () => html.classList.add('is-ready');
