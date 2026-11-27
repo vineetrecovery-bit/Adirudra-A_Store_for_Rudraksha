@@ -134,6 +134,17 @@
       const list = products.filter((p) => p.featured || p.rarity === 'Extremely Rare' || p.rarity === 'Rare').slice(0, site.featured.count);
       feat.innerHTML = list.map(productCard).join('');
     }
+    if (!hashRestored && !isPreview) { hashRestored = true; restoreHashScroll(); }
+  }
+
+  // Opening (or reloading) a link like index.html#authenticity: the browser jumps to the section before
+  // the products load, then they render above it and push it down. Jump to it again once they're in place.
+  let hashRestored = false;
+  function restoreHashScroll() {
+    let target = null;
+    try { target = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1))); } catch { /* bad hash */ }
+    if (!target) return;
+    requestAnimationFrame(() => target.scrollIntoView({ behavior: 'instant', block: 'start' }));
   }
 
   // ---------- Live preview from the admin editor ----------
