@@ -15,13 +15,15 @@ html.intro-play body { overflow: hidden; }
 .intro.is-leaving { transform: translateY(-100%); }
 .intro__inner { display: flex; flex-direction: column; align-items: center; gap: 6px; transition: opacity .4s, transform .6s var(--ease-out); }
 .intro.is-leaving .intro__inner { opacity: 0; transform: translateY(-30px); }
-.intro__art { height: min(78vh, 112vw); width: auto; max-width: 96vw; overflow: visible; will-change: transform; }
+.intro__art { height: min(80vh, 104vw); width: auto; max-width: 96vw; overflow: visible; will-change: transform; }
 
 /* The figure draws itself stroke by stroke, rising slightly, with a soft golden glow. */
 .intro__shiva { transform-box: fill-box; transform-origin: 50% 45%; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--gold) 60%, transparent)); animation: intro-rise 3.8s var(--ease-out) forwards, intro-dim .9s ease forwards 4.2s; }
 .intro__shiva .s { fill: none; stroke: var(--gold); stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: intro-draw 1s var(--ease-out) forwards; animation-delay: var(--d); }
 .intro__shiva .s.a { stroke-width: 1.2; opacity: .55; animation-duration: 2.2s; }
-.intro__shiva .intro__third-eye, .intro__shiva .s.fill { fill: var(--dark); }
+.intro__shiva .s.fill { fill: color-mix(in srgb, var(--dark) 86%, var(--gold)); }
+.intro__shiva .s.thick { stroke-width: 3.4; }
+.intro__shiva .s.solid { fill: var(--gold); fill-opacity: 0; animation: intro-draw 1s var(--ease-out) forwards, intro-solid .6s ease forwards; animation-delay: var(--d), calc(var(--d) + .5s); }
 .intro__aura-glow { opacity: 0; animation: intro-fade 2s ease forwards .3s; }
 .intro__eye-glow { opacity: 0; animation: intro-eye 1.6s ease forwards 2.3s; mix-blend-mode: screen; }
 
@@ -58,7 +60,8 @@ html.intro-play body { overflow: hidden; }
 @keyframes intro-dim { to { opacity: .22; } }
 @keyframes intro-eye { 0% { opacity: 0; } 45% { opacity: 1; } 100% { opacity: .7; } }
 @keyframes intro-tear-form { to { opacity: 1; transform: scale(1); } }
-@keyframes intro-fall { to { transform: translateY(369px); } }
+@keyframes intro-fall { to { transform: translateY(271px); } }
+@keyframes intro-solid { to { fill-opacity: 1; } }
 @keyframes intro-bead { to { transform: scale(1) rotate(0deg); } }
 @keyframes intro-ripple { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(3); } }
 @keyframes intro-halo { to { opacity: .85; } }
