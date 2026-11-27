@@ -188,7 +188,7 @@
   }
 
   // ---------- Product columns: pinned, counter-scrolling ----------
-  // Each .product-grid is split into vertical columns inside a stage that pins below the header.
+  // Each .product-grid[data-columns] (the homepage featured list) is split into vertical columns inside a stage that pins below the header.
   // While the page scrolls past it, the outer columns slide up and the middle one slides down.
   const grids = new Set();
 
@@ -259,7 +259,7 @@
       }).observe(grid, { childList: true });
       buildColumns(grid);
     };
-    document.querySelectorAll('.product-grid').forEach(watch);
+    document.querySelectorAll('.product-grid[data-columns]').forEach(watch);
 
     let ticking = false;
     window.addEventListener('scroll', () => {
