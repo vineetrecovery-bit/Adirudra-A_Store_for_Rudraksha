@@ -110,10 +110,118 @@
     update();
   }
 
+  // ---------- Product columns: pinned, counter-scrolling ----------
+  // Each .product-grid is split into vertical columns inside a stage that pins below the header.
+  // While the page scrolls past it, the outer columns slide up and the middle one slides down.
+  const grids = new Set();
+
+  function columnCount() {
+    return window.innerWidth <= 600 ? 2 : 3;
+  }
+
+  function buildColumns(grid) {
+    const cards = [...grid.children].filter((c) => c.classList.contains('product-card'));
+    if (!cards.length) { grid.classList.remove('is-columns'); grid.style.removeProperty('height'); return; }
+    const n = columnCount();
+    const cols = Array.from({ length: n }, (_, i) => {
+      const col = document.createElement('div');
+      col.className = 'pcol';
+      col.dataset.dir = i % 2 ? 'down' : 'up';
+      return col;
+    });
+    cards.forEach((card, i) => { card._order = i; cols[i % n].append(card); });
+    // Columns that move down start at their end, so reverse them to keep the first products in view first.
+    cols.forEach((col) => { if (col.dataset.dir === 'down') col.append(...[...col.children].reverse()); });
+    const stage = document.createElement('div');
+    stage.className = 'pcols';
+    stage.style.setProperty('--cols', n);
+    stage.append(...cols);
+    grid.dataset.cols = n;
+    grid.classList.add('is-columns');
+    grid.replaceChildren(stage);
+    measure(grid);
+  }
+
+  // Work out how far each column has to travel and how tall the scroll track must be.
+  function measure(grid) {
+    const stage = grid.querySelector(':scope > .pcols');
+    if (!stage) return;
+    const header = parseFloat(getComputedStyle(html).getPropertyValue('--header-h')) || 0;
+    const stageH = Math.max(320, window.innerHeight - header);
+    stage.style.height = `${stageH}px`;
+    stage.style.top = `${header}px`;
+    let travel = 0;
+    stage.querySelectorAll('.pcol').forEach((col) => {
+      col._travel = Math.max(0, col.scrollHeight - stageH);
+      travel = Math.max(travel, col._travel);
+    });
+    grid._header = header;
+    grid._travel = travel;
+    grid.style.height = `${stageH + travel}px`;
+    position(grid);
+  }
+
+  function position(grid) {
+    const stage = grid.querySelector(':scope > .pcols');
+    if (!stage) return;
+    const scrolled = grid._header - grid.getBoundingClientRect().top;
+    const p = grid._travel ? Math.min(1, Math.max(0, scrolled / grid._travel)) : 0;
+    stage.querySelectorAll('.pcol').forEach((col) => {
+      const y = col.dataset.dir === 'down' ? -(1 - p) * col._travel : -p * col._travel;
+      col.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`;
+    });
+  }
+
+  function setupColumns() {
+    const watch = (grid) => {
+      if (grids.has(grid)) return;
+      grids.add(grid);
+      // Product lists are rendered (and re-rendered by shop filters) after load: rebuild whenever raw cards appear.
+      new MutationObserver(() => {
+        if ([...grid.children].some((c) => !c.classList.contains('pcols'))) buildColumns(grid);
+      }).observe(grid, { childList: true });
+      buildColumns(grid);
+    };
+    document.querySelectorAll('.product-grid').forEach(watch);
+
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => { grids.forEach(position); ticking = false; });
+    }, { passive: true });
+
+    let lastCols = columnCount();
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const n = columnCount();
+        grids.forEach((grid) => {
+          if (n === lastCols) return measure(grid);
+          // Column count changed: put the cards back in order and redistribute them.
+          const cards = [...grid.querySelectorAll('.product-card')]
+            .sort((a, b) => (a._order ?? 0) - (b._order ?? 0));
+          if (cards.length) grid.replaceChildren(...cards);
+        });
+        lastCols = n;
+      }, 150);
+    });
+    // Images and fonts change card heights after the first measurement.
+    window.addEventListener('load', () => grids.forEach(measure));
+    let remeasure = 0;
+    document.addEventListener('load', (e) => {
+      if (e.target.tagName !== 'IMG' || !e.target.closest('.pcols')) return;
+      cancelAnimationFrame(remeasure);
+      remeasure = requestAnimationFrame(() => grids.forEach(measure));
+    }, true);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     splitHeadline();
     setupReveal();
     setupHeader();
+    setupColumns();
     if (playIntro) runIntro(); else requestAnimationFrame(ready);
   });
 })();

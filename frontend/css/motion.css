@@ -141,3 +141,28 @@ html.intro-play body { overflow: hidden; }
 @media (hover: hover) and (pointer: fine) {
   .product-card__info { display: none; }
 }
+
+/* ---------- Product columns: pinned, counter-scrolling (built by js/motion.js) ---------- */
+.motion .product-grid.is-columns { display: block; position: relative; }
+.pcols {
+  position: sticky; /* top and height are set from the header height and viewport by motion.js */
+  display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 24px; align-items: start;
+  overflow: hidden;
+  /* Fade the cards in and out at the stage's top and bottom edges. */
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+          mask-image: linear-gradient(180deg, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+.pcol { display: flex; flex-direction: column; gap: 24px; padding: 28px 0; will-change: transform; }
+@media (max-width: 860px) {
+  .pcols, .pcol { gap: 14px; }
+  .pcols .product-card h3 { font-size: 21px; }
+  .pcols .product-card__content { padding: 16px 16px 0; }
+  .pcols .product-card__bottom { margin: 16px 16px 0; padding: 12px 0 16px; flex-wrap: wrap; }
+}
+@media (max-width: 600px) {
+  .pcols, .pcol { gap: 10px; }
+  .pcols .product-card h3 { font-size: 18px; }
+  .pcols .product-card__content { padding: 12px 12px 0; }
+  .pcols .product-card__bottom { margin: 12px 12px 0; padding: 10px 0 12px; }
+  .pcols .add-btn { width: 100%; }
+}
