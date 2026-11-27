@@ -52,11 +52,14 @@
   const leftLocks = LOCKS.map(lock);
   const rightLocks = LOCKS.map(([sx, sy, ex, ey, amp, w, ph]) => lock([500 - sx, sy, 500 - ex, ey + 6, -amp, w, ph + 0.7]));
   const FACE_L = [
-    'M200 212 Q 218 222, 238 212', 'M204 205 Q 219 199, 235 205', // closed eye and its crease
-    'M207 217 L 205 222 M214 219 L 213 225 M221 220 L 221 226 M228 219 L 229 225', // lashes
+    ['solid', 'M180 215 C 193 207, 214 206, 229 211 C 214 210, 194 212, 180 215 Z'], // closed eyelid: one long tapered stroke
+    'M188 205 C 197 193, 215 191, 228 203', // eyelid fold
+    'M192 220 Q 205 223, 219 219', // soft line under the eye
     'M173 212 C 157 206, 155 244, 174 256', // ear
-    'M229 250 C 224 244, 229 237, 236 240', 'M238 252 C 236 256, 240 259, 244 257' // nostril wing and opening
+    'M240 190 C 242 206, 242 222, 238 236', // nose bridge, running down from the brow
+    'M237 236 C 226 238, 226 254, 238 255' // round nostril wing
   ];
+  const mirrorItem = (it) => (Array.isArray(it) ? [it[0], mirror(it[1])] : mirror(it));
   const SHIVA = [
     // crescent moon behind the jata
     'M148 50 A 56 56 0 0 0 236 104 A 47 47 0 0 1 148 50 Z',
@@ -72,23 +75,25 @@
     ...leftLocks, ...rightLocks,
     // face
     'M174 150 C 168 192, 170 236, 178 266 C 184 290, 198 308, 216 321 C 230 331, 270 331, 284 321 C 302 308, 316 290, 322 266 C 330 236, 332 192, 326 150',
-    ...FACE_L, ...FACE_L.map(mirror),
+    ...FACE_L, ...FACE_L.map(mirrorItem),
     // hoop earrings (filled so the hair behind them is hidden)
     'M174 256 V 276', 'M326 256 V 276',
     ['fill', 'M162 300 a 14 22 0 1 0 28 0 a 14 22 0 1 0 -28 0'], 'M169 302 a 7 13 0 1 0 14 0 a 7 13 0 1 0 -14 0',
     ['fill', 'M310 300 a 14 22 0 1 0 28 0 a 14 22 0 1 0 -28 0'], 'M317 302 a 7 13 0 1 0 14 0 a 7 13 0 1 0 -14 0',
     // tripundra (three bands of ash) and the third eye
-    ['thick', 'M210 150 Q 250 144, 290 150'], ['thick', 'M208 159 Q 250 153, 292 159'], ['thick', 'M210 168 Q 250 162, 290 168'],
+    ['thick', 'M210 144 Q 250 138, 290 144'], ['thick', 'M208 153 Q 250 147, 292 153'], ['thick', 'M210 162 Q 250 156, 290 162'],
     ['fill', 'M250 138 C 259 148, 259 168, 250 178 C 241 168, 241 148, 250 138 Z'],
     ['solid', 'M250 149 C 254 155, 254 161, 250 167 C 246 161, 246 155, 250 149 Z'],
     ['solid', 'M247.5 188 a 2.5 2.5 0 1 0 5 0 a 2.5 2.5 0 1 0 -5 0'],
     // bold arched brows
-    ['solid', 'M192 198 C 204 182, 226 178, 242 188 C 226 184, 206 188, 194 202 Z'],
-    ['solid', 'M308 198 C 296 182, 274 178, 258 188 C 274 184, 294 188, 306 202 Z'],
+    ['solid', 'M178 196 C 188 180, 218 172, 240 182 L 239 191 C 220 184, 194 186, 178 196 Z'],
+    ['solid', 'M322 196 C 312 180, 282 172, 260 182 L 261 191 C 280 184, 306 186, 322 196 Z'],
     // nose and lips
-    'M243 214 C 241 226, 240 234, 237 241', 'M229 250 C 233 257, 242 258, 250 255 C 258 258, 267 257, 271 250',
-    'M222 279 C 233 271, 243 271, 250 276 C 257 271, 267 271, 278 279', 'M222 279 Q 250 287, 278 279', 'M228 283 C 237 297, 263 297, 272 283',
-    'M246 262 L 244 271 M254 262 L 256 271', 'M236 307 Q 250 313, 264 307', 'M218 342 Q 250 354, 282 342',
+    'M238 255 C 244 259, 256 259, 262 255',
+    ['solid', 'M240 250 a 3.5 2.6 0 1 0 7 0 a 3.5 2.6 0 1 0 -7 0'], ['solid', 'M253 250 a 3.5 2.6 0 1 0 7 0 a 3.5 2.6 0 1 0 -7 0'],
+    'M214 279 C 226 276, 236 268, 244 266 C 247 266, 249 268, 250 269 C 251 268, 253 266, 256 266 C 264 268, 274 276, 286 279',
+    'M209 276 C 212 281, 217 282, 222 280 C 234 277, 242 276, 250 278 C 258 276, 266 277, 278 280 C 283 282, 288 281, 291 276',
+    'M234 290 Q 250 295, 266 290', 'M243 302 Q 250 304, 257 302', 'M218 342 Q 250 354, 282 342',
     // neck and shoulders
     'M200 310 C 204 346, 204 372, 198 392', 'M300 310 C 296 346, 296 372, 302 392',
     'M198 392 C 164 402, 126 414, 94 444', 'M302 392 C 336 402, 374 414, 406 444',
@@ -190,8 +195,8 @@
             <circle class="intro__eye-glow" cx="250" cy="158" r="18" fill="url(#introEye)"/>
             ${MALA}
           </g>
-          <g transform="translate(281 218)"><g class="intro__tear"><path class="intro__drop" d="M0 0C5 8 9 14 9 19A9 9 0 1 1-9 19C-9 14-5 8 0 0Z"/></g></g>
-          <g transform="translate(281 508)">
+          <g transform="translate(294 214)"><g class="intro__tear"><path class="intro__drop" d="M0 0C5 8 9 14 9 19A9 9 0 1 1-9 19C-9 14-5 8 0 0Z"/></g></g>
+          <g transform="translate(294 508)">
             <circle class="intro__halo" r="66"/>
             <g class="intro__bead">${rudraksha(40, 5)}</g>
             <circle class="intro__ripple" r="42"/>
