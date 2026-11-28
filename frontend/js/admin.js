@@ -48,6 +48,8 @@
   }
 
   const TABS = ['orders', 'products', 'customers', 'site', 'settings'];
+  // The Website and Settings editors use this when the server says the session has ended.
+  window.Admin = { showLogin };
 
   // ---------- Customers ----------
   let customers = [];

@@ -17,7 +17,13 @@
       body: body ? JSON.stringify(body) : undefined
     });
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401) { location.reload(); throw new Error('Please sign in again.'); }
+    // Signed out (session ended) or not the admin: show the sign-in form. Never reload the page here:
+    // if the server keeps answering 401, a reload would just repeat forever.
+    if (res.status === 401 || res.status === 403) {
+      const msg = res.status === 401 ? 'Your session has ended. Please sign in again.' : (data.error || 'This account does not have admin access.');
+      if (window.Admin) window.Admin.showLogin(msg);
+      const e = new Error(msg); e.status = res.status; throw e;
+    }
     if (!res.ok) { const e = new Error(data.error || 'Request failed.'); e.field = data.field; e.status = res.status; throw e; }
     return data;
   }
