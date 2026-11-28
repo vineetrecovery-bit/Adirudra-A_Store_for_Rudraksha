@@ -429,3 +429,95 @@ test('accounts: only the one admin account can use the admin API', async () => {
   await ensureAdmin(db);
   customerCookie = null; // that customer's password was replaced while they were admin
 });
+
+test('shiprocket: ship an order, retry safely, track it by webhook and cancel', async () => {
+  const { createShiprocket, orderPayload } = await import('../backend/shiprocket.js');
+  // A fake Shiprocket API: records each call and fails the courier step once.
+  const calls = [];
+  let failAwbOnce = true;
+  const fakeFetch = async (url, opts = {}) => {
+    const p = url.replace('https://apiv2.shiprocket.in/v1/external', '');
+    calls.push(p);
+    const reply = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+    if (p === '/auth/login') return reply(200, { token: 'tok' });
+    assert.equal(opts.headers.Authorization, 'Bearer tok');
+    if (p === '/orders/create/adhoc') return reply(200, { order_id: 111, shipment_id: 222, status: 'NEW' });
+    if (p === '/courier/assign/awb') {
+      if (failAwbOnce) { failAwbOnce = false; return reply(400, { message: 'Insufficient wallet balance' }); }
+      return reply(200, { awb_assign_status: 1, response: { data: { awb_code: 'AWB999', courier_company_id: 10, courier_name: 'Delhivery' } } });
+    }
+    if (p === '/courier/generate/pickup') return reply(200, { pickup_status: 1, response: {} });
+    if (p === '/courier/generate/label') return reply(200, { label_created: 1, label_url: 'https://example.com/label.pdf' });
+    if (p === '/courier/track/awb/AWB999') return reply(200, { tracking_data: { shipment_track: [{ current_status: 'IN TRANSIT' }] } });
+    if (p === '/orders/cancel') return reply(200, {});
+    return reply(404, { message: 'unexpected ' + p });
+  };
+  const sr = createShiprocket({ fetchFn: fakeFetch, settings: { enabled: true, email: 'e', password: 'p', pickupLocation: 'Primary' } });
+  const app2 = createApp(db, siteStore, undefined, undefined, sr).listen(0);
+  const base2 = `http://127.0.0.1:${app2.address().port}`;
+  const call2 = async (p, { method = 'GET', body, cookie, headers = {} } = {}) => {
+    const res = await fetch(base2 + p, { method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined });
+    return { status: res.status, body: await res.json().catch(() => null), headers: res.headers };
+  };
+  try {
+    // This app has its own sign-in rate limits, so sign up a fresh customer and the admin on it.
+    const buyer = cookieOf(await call2('/api/auth/signup', { method: 'POST', body: { name: 'Mohan Das', phone: '9811122233', password: 'mohan-pass-1' } }));
+    const placed = await call2('/api/orders', { method: 'POST', cookie: buyer, body: { items: [{ id: 'AR-003', qty: 1 }], payment: 'cod', customer } });
+    const id = placed.body.id;
+
+    // The payload's amounts add up to the order total (what the courier collects on COD).
+    const p = orderPayload(await db.orders.get(id), 'Primary');
+    assert.equal(p.payment_method, 'COD');
+    assert.equal(p.sub_total + p.shipping_charges + p.transaction_charges - p.total_discount, placed.body.total);
+    assert.equal(p.billing_customer_name, 'Asha'); assert.equal(p.billing_last_name, 'Verma');
+
+    const admin = cookieOf(await call2('/api/auth/login', { method: 'POST', body: { phone: '9000000001', password: 'test-password' } }));
+    assert.equal((await call2(`/api/admin/orders/${id}/ship`, { method: 'POST' })).status, 401);
+    // First try: the order is created on Shiprocket but no courier is assigned; that progress is kept.
+    const first = await call2(`/api/admin/orders/${id}/ship`, { method: 'POST', cookie: admin });
+    assert.equal(first.status, 502);
+    assert.match(first.body.error, /wallet balance/);
+    assert.equal(first.body.order.shipment.shipmentId, '222');
+    assert.equal(first.body.order.shipment.awb, null);
+    // Retry skips creating the order again.
+    const second = await call2(`/api/admin/orders/${id}/ship`, { method: 'POST', cookie: admin });
+    assert.equal(second.status, 200);
+    assert.equal(calls.filter((c) => c === '/orders/create/adhoc').length, 1);
+    assert.equal(second.body.shipment.awb, 'AWB999');
+    assert.equal(second.body.shipment.courierName, 'Delhivery');
+    assert.equal(second.body.shipment.labelUrl, 'https://example.com/label.pdf');
+    assert.equal(second.body.shipment.trackingUrl, 'https://shiprocket.co/tracking/AWB999');
+    assert.ok(second.body.shipment.pickupScheduledAt);
+    assert.match(second.body.history.at(-1).note, /AWB AWB999/);
+
+    // Refresh status from Shiprocket: in transit → shipped.
+    const tracked = await call2(`/api/admin/orders/${id}/track`, { method: 'POST', cookie: admin });
+    assert.equal(tracked.body.status, 'shipped');
+
+    // Webhook: needs the shared token; DELIVERED marks the order delivered.
+    config.shiprocket.webhookToken = 'hook-secret';
+    const hook = { order_id: id, awb: 'AWB999', current_status: 'DELIVERED' };
+    assert.equal((await call2('/api/delivery-updates', { method: 'POST', body: hook })).status, 401);
+    assert.equal((await call2('/api/delivery-updates', { method: 'POST', body: hook, headers: { 'x-api-key': 'hook-secret' } })).status, 200);
+    const done = await db.orders.get(id);
+    assert.equal(done.status, 'delivered');
+    assert.ok(done.shipment.deliveredAt);
+
+    // The customer sees tracking on their order page.
+    const pub = await call2(`/api/orders/${id}?token=${placed.body.token}`);
+    assert.deepEqual(pub.body.tracking, { awb: 'AWB999', courier: 'Delhivery', status: 'DELIVERED', url: 'https://shiprocket.co/tracking/AWB999' });
+
+    // Pending / unpaid orders can't be shipped; cancelling a shipped order cancels it on Shiprocket.
+    const pending = await call2('/api/orders', { method: 'POST', cookie: buyer, body: { items: [{ id: 'AR-003', qty: 1 }], payment: 'whatsapp', customer } });
+    assert.equal((await call2(`/api/admin/orders/${pending.body.id}/ship`, { method: 'POST', cookie: admin })).status, 400);
+    const other = await call2('/api/orders', { method: 'POST', cookie: buyer, body: { items: [{ id: 'AR-003', qty: 1 }], payment: 'cod', customer } });
+    await call2(`/api/admin/orders/${other.body.id}/ship`, { method: 'POST', cookie: admin });
+    const cancelled = await call2(`/api/admin/orders/${other.body.id}`, { method: 'PATCH', cookie: admin, body: { status: 'cancelled' } });
+    assert.ok(calls.includes('/orders/cancel'));
+    assert.equal(cancelled.body.shipment.status, 'CANCELED');
+    assert.match(cancelled.body.history.at(-1).note, /Shiprocket order cancelled/);
+  } finally {
+    config.shiprocket.webhookToken = '';
+    app2.close();
+  }
+});

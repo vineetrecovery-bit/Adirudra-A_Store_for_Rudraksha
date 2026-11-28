@@ -39,9 +39,19 @@ export const config = {
     maxPerProduct: 12
   },
 
-  // Parcel details stored on each order for Shiprocket (integration comes later).
-  shipping: {
+  // Shiprocket API user (Shiprocket > Settings > API). Leave empty to ship orders by hand.
+  shiprocket: {
+    email: env.SHIPROCKET_EMAIL || '',
+    password: env.SHIPROCKET_PASSWORD || '',
+    // Name of the pickup address exactly as in Shiprocket > Settings > Pickup Addresses.
     pickupLocation: env.SHIPROCKET_PICKUP_LOCATION || 'Primary',
+    // Shiprocket sends this in the x-api-key header of tracking webhooks; set the same token there.
+    webhookToken: env.SHIPROCKET_WEBHOOK_TOKEN || '',
+    get enabled() { return Boolean(this.email && this.password); }
+  },
+
+  // Parcel details stored on each order for the courier.
+  shipping: {
     defaultItemGrams: num(env.SHIP_DEFAULT_ITEM_GRAMS, 50),   // when a product has no weight set
     packagingGrams: num(env.SHIP_PACKAGING_GRAMS, 100),       // box + padding
     defaultBox: {                                           // cm, when products have no size set

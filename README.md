@@ -30,6 +30,7 @@ backend/               Express server and business logic
   pricing.js           Cart pricing: discounts, shipping, COD fee (server is the source of truth)
   validate.js          Customer + product validation
   razorpay.js          Razorpay order creation + signature verification
+  shiprocket.js        Shiprocket: create shipment, assign courier (AWB), pickup, label, tracking
   settings.js          Store settings edited in the admin (fees, contact, coupons)
   site.js              Website theme + content, validation, version history
   uploads.js           Product photo/video upload checks
@@ -58,7 +59,7 @@ Five MySQL tables (see `database/mysql/schema.sql`), created automatically when 
 | `user_groups` | `admin` (one account) and `user` (customers) |
 | `users` | Name, unique mobile number, group, password hash |
 | `products` | Catalogue, stock, the list of photos/videos (`media`), and shipping details: SKU, HSN code, weight (g), packed size (cm) |
-| `orders` | Everything about an order: the account, customer name/phone/email, billing and shipping address, items (with SKU, HSN, weight), amounts, payment, parcel weight and size, and empty Shiprocket fields (order/shipment ID, AWB, courier, tracking, label, invoice) ready for the integration |
+| `orders` | Everything about an order: the account, customer name/phone/email, billing and shipping address, items (with SKU, HSN, weight), amounts, payment, parcel weight and size, and the Shiprocket shipment (order/shipment ID, AWB, courier, status, tracking and label links) |
 | `settings` | One JSON value per key: `store` (fees, contact, coupons from Admin → Settings), `site` (website theme and text), `site_history` (last 15 published versions) |
 
 **Set it up on Hostinger:** hPanel → Databases → MySQL Databases → create a database and user. Then set `DB_HOST=localhost`, `DB_NAME`, `DB_USER` and `DB_PASSWORD` in the Node.js app's environment variables and restart. Copy existing JSON data in once with `npm run db:import` (safe to re-run).
@@ -88,7 +89,8 @@ Passwords are stored as salted scrypt hashes in the `users` table. Sessions are 
 ### Admin (`/admin`)
 Sign in with the admin account's mobile number and password.
 - **Customers:** every registered account with its mobile number, join date and number of orders.
-- **Orders:** search, filter by status, totals at a glance, full order details, change status or payment status, and add notes such as tracking numbers. Cancelling an order puts its items back in stock.
+- **Orders:** search, filter by status, totals at a glance, full order details, change status or payment status, and add notes such as tracking numbers. Cancelling an order puts its items back in stock (and cancels it on Shiprocket if it was sent there).
+- **Shipping (Shiprocket):** open a confirmed order that is paid or COD and press **Ship with Shiprocket**. It creates the order in Shiprocket, assigns the recommended courier (AWB), books a pickup and makes the label (**Print label**). If a step fails (for example a low Shiprocket wallet), press the button again; finished steps are skipped. The customer sees the courier, AWB and a tracking link on their order page. Courier updates arrive by webhook (see Configuration) and move the order to Shipped and Delivered; **Refresh status** checks Shiprocket by hand.
 - **Settings:** free-shipping threshold, shipping fee, cash-on-delivery fee, max quantity per product, WhatsApp number, store email, and coupon codes (add, edit, pause or remove; % or ₹ off, optional minimum order). Changes apply to new orders immediately, no restart needed. They're saved in the `settings` table (key `store`); the `.env` values are only the starting defaults.
 - **Products:** add, edit or delete products. Price, stock, featured and visibility can be edited directly in the table. Each product can have up to 12 photos and videos (upload or https:// link; reorder them, the first photo is the card image) and shipping details (SKU, HSN, weight, packed size). A product that appears in past orders is hidden instead of deleted.
 
@@ -120,6 +122,8 @@ How it works: the website lives in the `settings` table under `site`, and the ve
 | GET | `/api/admin/me` | Whether the signed-in account is the admin |
 | GET | `/api/admin/users` | Registered accounts |
 | GET/PATCH | `/api/admin/orders[/:id]` | Manage orders |
+| POST | `/api/admin/orders/:id/ship`, `/api/admin/orders/:id/track` | Send to Shiprocket, refresh courier status |
+| POST | `/api/delivery-updates` | Shiprocket tracking webhook (needs the `x-api-key` token) |
 | GET/POST/PATCH/DELETE | `/api/admin/products[/:id]` | Manage products |
 | GET/PUT | `/api/admin/settings` | Store settings (fees, contact, coupons) |
 | GET/PUT | `/api/admin/site` | Website settings |
@@ -130,6 +134,8 @@ How it works: the website lives in the `settings` table under `site`, and the ve
 ## Configuration
 
 The admin account (phone + password), session secret and Razorpay keys are set in `.env` (see `.env.example`). The WhatsApp number, store email, shipping/COD fees and coupon codes can be set there and in `backend/config.js` as starting defaults, but once you save **Admin → Settings**, the values in the `settings` table are used instead.
+
+**Shiprocket:** in Shiprocket → Settings → API, create an API user (a different email from your own login) and put it in `.env` as `SHIPROCKET_EMAIL` and `SHIPROCKET_PASSWORD` (single-quote values containing `$`, `&` or `!`). Set `SHIPROCKET_PICKUP_LOCATION` to the pickup address name exactly as in Settings → Pickup Addresses. For automatic tracking, set `SHIPROCKET_WEBHOOK_TOKEN` to a long random string, then in Shiprocket → Settings → API → Webhooks add the URL `https://<your-domain>/api/delivery-updates` with that same token. (Shiprocket rejects webhook URLs containing the word "shiprocket", hence the path.)
 
 ## Before going live
 

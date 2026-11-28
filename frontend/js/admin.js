@@ -139,6 +139,43 @@
     } catch (err) { toast(err.message); renderOrders(); return null; }
   }
 
+  // Courier section of the order dialog: a "Ship" button, or the AWB with tracking and label links.
+  function shippingPanel(o) {
+    const sh = o.shipment || {};
+    if (o.status === 'cancelled' && !sh.awb) return '';
+    const canShip = o.status !== 'pending' && ['paid', 'cod'].includes(o.paymentStatus);
+    const unfinished = sh.shipmentId && (!sh.awb || !sh.pickupScheduledAt || !sh.labelUrl);
+    const body = sh.awb
+      ? `<p style="margin:0 0 10px"><strong>${esc(sh.courierName || 'Courier')}</strong> · AWB <strong>${esc(sh.awb)}</strong>${sh.status ? ` · <span class="pill">${esc(sh.status)}</span>` : ''}</p>
+         <p style="margin:0;display:flex;gap:18px;flex-wrap:wrap">
+           ${sh.trackingUrl ? `<a class="text-link" href="${esc(sh.trackingUrl)}" target="_blank" rel="noopener">Track parcel</a>` : ''}
+           ${sh.labelUrl ? `<a class="text-link" href="${esc(sh.labelUrl)}" target="_blank" rel="noopener">Print label</a>` : ''}
+           ${o.status !== 'cancelled' ? '<button class="text-link" type="button" id="trackBtn">Refresh status</button>' : ''}
+         </p>`
+      : `<p class="muted" style="margin:0 0 10px">${canShip ? 'Creates the order in Shiprocket, assigns the recommended courier, books a pickup and makes the label.' : 'Confirm the order and its payment (paid or COD) before shipping.'}</p>`;
+    const button = (!sh.awb || unfinished) && o.status !== 'cancelled'
+      ? `<button class="button button--dark" type="button" id="shipBtn"${canShip ? '' : ' disabled'} style="margin-top:12px">${unfinished ? 'Finish Shiprocket steps' : 'Ship with Shiprocket'}</button>` : '';
+    return `<div class="ship-box"><h3 class="kicker" style="margin:0 0 10px">Shipping</h3>${body}${button}</div>`;
+  }
+
+  async function shipAction(id, action, btn) {
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = action === 'ship' ? 'Sending to Shiprocket…' : 'Checking…';
+    try {
+      const updated = await api(`/orders/${encodeURIComponent(id)}/${action}`, { method: 'POST' });
+      orders = orders.map((o) => (o.id === id ? updated : o));
+      toast(action === 'ship' ? `Order ${id} sent to Shiprocket` : `Status: ${updated.shipment.status || 'no update yet'}`);
+    } catch (err) {
+      toast(err.message);
+      // A partly finished shipment still comes back with the error; keep what was saved.
+      await loadOrders().catch(() => {});
+    }
+    btn.textContent = label;
+    renderOrders();
+    openOrder(id);
+  }
+
   function openOrder(id) {
     const o = orders.find((x) => x.id === id); if (!o) return;
     const c = o.customer;
@@ -147,7 +184,7 @@
       <div class="dialog-head"><h2 id="orderDialogTitle">${esc(o.id)}</h2><button class="icon-close" type="button" data-close aria-label="Close">×</button></div>
       <div class="detail-grid">
         <div><h3>Customer</h3>${esc(c.name)}<br><a href="tel:+91${esc(c.phone)}">+91 ${esc(c.phone)}</a><br><a href="mailto:${esc(c.email)}">${esc(c.email)}</a><br><a class="text-link" href="https://wa.me/91${esc(c.phone)}" target="_blank" rel="noopener">WhatsApp customer</a></div>
-        <div><h3>Ship to</h3>${esc(c.address)}${c.address2 ? `<br>${esc(c.address2)}` : ''}<br>${esc(c.city)}, ${esc(c.state)} ${esc(c.pincode)}${c.notes ? `<br><br><strong>Note:</strong> ${esc(c.notes)}` : ''}${o.package ? `<br><br><span class="muted">Parcel: ${o.package.weightKg} kg · ${o.package.lengthCm}×${o.package.breadthCm}×${o.package.heightCm} cm</span>` : ''}${o.shipment && o.shipment.awb ? `<br><span class="muted">AWB ${esc(o.shipment.awb)}${o.shipment.courierName ? ` · ${esc(o.shipment.courierName)}` : ''}</span>` : ''}</div>
+        <div><h3>Ship to</h3>${esc(c.address)}${c.address2 ? `<br>${esc(c.address2)}` : ''}<br>${esc(c.city)}, ${esc(c.state)} ${esc(c.pincode)}${c.notes ? `<br><br><strong>Note:</strong> ${esc(c.notes)}` : ''}${o.package ? `<br><br><span class="muted">Parcel: ${o.package.weightKg} kg · ${o.package.lengthCm}×${o.package.breadthCm}×${o.package.heightCm} cm</span>` : ''}</div>
       </div>
       ${o.items.map((i) => `<div class="summary-row"><span>${esc(i.name)} <span class="muted">(${esc(i.id)})</span> × ${i.qty}</span><span>${money(i.total)}</span></div>`).join('')}
       ${o.discount ? `<div class="summary-row"><span>Discount (${esc(o.coupon)})</span><span class="discount">−${money(o.discount)}</span></div>` : ''}
@@ -155,6 +192,7 @@
       ${o.codFee ? `<div class="summary-row"><span>COD fee</span><span>${money(o.codFee)}</span></div>` : ''}
       <div class="summary-row summary-row--total"><span>Total · ${esc(PAYMENT_LABEL[o.payment])}</span><span>${money(o.total)}</span></div>
       ${o.razorpayPaymentId ? `<p class="muted" style="font-size:12px">Razorpay payment: ${esc(o.razorpayPaymentId)}</p>` : ''}
+      ${shippingPanel(o)}
       <form class="update-row" id="orderUpdate">
         <div class="field"><label for="uStatus">Status</label><select class="select" id="uStatus"${o.status === 'cancelled' ? ' disabled' : ''}>${STATUSES.map((s) => `<option value="${s}"${s === o.status ? ' selected' : ''}>${cap(s)}</option>`).join('')}</select></div>
         <div class="field"><label for="uPay">Payment</label><select class="select" id="uPay">${PAYMENT_STATUSES.map((s) => `<option value="${s}"${s === o.paymentStatus ? ' selected' : ''}>${cap(s)}</option>`).join('')}</select></div>
@@ -164,6 +202,10 @@
       <h3 class="kicker" style="margin-top:24px">History</h3>
       <ul class="history">${[...(o.history || [])].reverse().map((h) => `<li>${esc(date(h.at))} — <strong>${esc(cap(h.status))}</strong> · ${esc(h.note)}</li>`).join('')}</ul>
     </div>`;
+    const shipBtn = $('#shipBtn', dlg);
+    if (shipBtn) shipBtn.addEventListener('click', () => shipAction(o.id, 'ship', shipBtn));
+    const trackBtn = $('#trackBtn', dlg);
+    if (trackBtn) trackBtn.addEventListener('click', () => shipAction(o.id, 'track', trackBtn));
     $('#orderUpdate', dlg).addEventListener('submit', async (e) => {
       e.preventDefault();
       const updated = await updateOrder(o.id, { status: $('#uStatus', dlg).value, paymentStatus: $('#uPay', dlg).value, note: $('#uNote', dlg).value });

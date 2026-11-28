@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { quote, PricingError } from './pricing.js';
 import { validateCustomer, validateProduct, INDIAN_STATES } from './validate.js';
 import { createRazorpayOrder, verifyPaymentSignature } from './razorpay.js';
+import { createShiprocket, ShiprocketError, orderStatusFor } from './shiprocket.js';
 import { createAuth } from './auth.js';
 import { DEFAULTS, HEADING_FONTS, BODY_FONTS, TRUST_ICONS, validateSite, themeCss, fontsUrl } from './site.js';
 import { saveProductMedia } from './uploads.js';
@@ -53,6 +54,7 @@ const publicOrder = (o) => ({
   id: o.id, createdAt: o.createdAt, status: o.status, paymentStatus: o.paymentStatus, payment: o.payment,
   customer: o.customer, items: o.items, subtotal: o.subtotal, discount: o.discount, coupon: o.coupon,
   shipping: o.shipping, codFee: o.codFee, total: o.total,
+  tracking: o.shipment?.awb ? { awb: o.shipment.awb, courier: o.shipment.courierName, status: o.shipment.status, url: o.shipment.trackingUrl } : null,
   // Lets the customer retry an abandoned online payment from the order page.
   razorpay: o.payment === 'upi' && o.paymentStatus === 'unpaid' && o.status !== 'cancelled' && o.razorpayOrderId && config.razorpay.enabled
     ? { keyId: config.razorpay.keyId, orderId: o.razorpayOrderId, amount: Math.round(o.total * 100), currency: 'INR' } : null
@@ -67,7 +69,7 @@ function newOrderId() {
 // Wrap async handlers so thrown errors reach the error middleware.
 const route = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-export function createApp(db, siteStore, settingsStore = createSettingsStore(db), media = createMediaStore({ dataDir: config.dataDir, r2: config.r2 })) {
+export function createApp(db, siteStore, settingsStore = createSettingsStore(db), media = createMediaStore({ dataDir: config.dataDir, r2: config.r2 }), shiprocket = createShiprocket()) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 'loopback');
@@ -232,6 +234,35 @@ export function createApp(db, siteStore, settingsStore = createSettingsStore(db)
     res.json(publicOrder(updated));
   }));
 
+  // Records a courier status on the order and moves it to shipped/delivered when that applies.
+  async function applyCourierStatus(order, srStatus) {
+    if (!srStatus || order.status === 'cancelled') return order;
+    const now = nowIst();
+    const shipment = { ...order.shipment, status: String(srStatus).slice(0, 40) };
+    const changes = { shipment };
+    const next = orderStatusFor(srStatus);
+    if (next === 'shipped' && order.status !== 'shipped' && order.status !== 'delivered') { changes.status = 'shipped'; shipment.shippedAt = shipment.shippedAt || now; }
+    if (next === 'delivered' && order.status !== 'delivered') { changes.status = 'delivered'; shipment.deliveredAt = now; shipment.shippedAt = shipment.shippedAt || now; }
+    if (shipment.status === order.shipment.status && !changes.status) return order;
+    changes.history = [...order.history, { at: now, status: changes.status || order.status, note: `Courier: ${shipment.status}` }];
+    return db.orders.update(order.id, changes);
+  }
+
+  // Shiprocket tracking webhook (Shiprocket > Settings > API > Webhooks). The URL must not contain
+  // the word "shiprocket", hence the neutral path. Always answers 200 so Shiprocket doesn't retry forever.
+  api.post('/delivery-updates', route(async (req, res) => {
+    const key = String(req.get('x-api-key') || '');
+    const expected = config.shiprocket.webhookToken;
+    if (!expected || key.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(key), Buffer.from(expected))) {
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
+    const { order_id: orderId, awb, current_status: status } = req.body || {};
+    let order = orderId ? await db.orders.get(String(orderId)) : null;
+    if (!order && awb) order = (await db.orders.list()).find((o) => o.shipment.awb === String(awb)) || null;
+    if (order && (!awb || !order.shipment.awb || order.shipment.awb === String(awb))) await applyCourierStatus(order, status);
+    res.json({ ok: true });
+  }));
+
   // ---------------- Admin API ----------------
   const admin = express.Router();
   // The old shared-password login is gone: the admin signs in with their account (POST /api/auth/login).
@@ -269,14 +300,55 @@ export function createApp(db, siteStore, settingsStore = createSettingsStore(db)
       if (!PAYMENT_STATUSES.includes(paymentStatus)) return res.status(400).json({ error: 'Invalid payment status.' });
       changes.paymentStatus = paymentStatus;
     }
+    // Cancelling also cancels the Shiprocket order (if one was made) so the courier doesn't come.
+    let courierNote = '';
+    if (changes.status === 'cancelled' && order.status !== 'cancelled' && order.shipment.orderId && shiprocket.enabled) {
+      try { await shiprocket.cancel(order.shipment.orderId); changes.shipment = { ...order.shipment, status: 'CANCELED' }; courierNote = ' · Shiprocket order cancelled'; }
+      catch (err) { console.error(err); courierNote = ' · Could not cancel on Shiprocket, cancel it there'; }
+    }
     // Cancelling puts the items back in stock (once).
     if (changes.status === 'cancelled' && order.status !== 'cancelled' && !order.stockRestored) {
       await db.products.releaseStock(order.items.map(({ id, qty }) => ({ id, qty })));
       changes.stockRestored = true;
     }
-    const entry = { at: nowIst(), status: changes.status || order.status, note: typeof note === 'string' && note.trim() ? note.trim().slice(0, 300) : 'Updated by admin' };
+    const entry = { at: nowIst(), status: changes.status || order.status, note: (typeof note === 'string' && note.trim() ? note.trim().slice(0, 300) : 'Updated by admin') + courierNote };
     const { token, ...updated } = await db.orders.update(order.id, { ...changes, history: [...order.history, entry] });
     res.json(updated);
+  }));
+
+  // Send an order to Shiprocket: create it, assign a courier (AWB), book the pickup, get the label.
+  // Safe to press again after a failure: finished steps are skipped.
+  admin.post('/orders/:id/ship', route(async (req, res) => {
+    let order = await db.orders.get(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (!shiprocket.enabled) return res.status(400).json({ error: 'Shiprocket is not set up. Add SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD to .env and restart.' });
+    if (order.status === 'cancelled') return res.status(400).json({ error: 'This order is cancelled.' });
+    if (order.status === 'pending' || !['paid', 'cod'].includes(order.paymentStatus)) {
+      return res.status(400).json({ error: 'Only confirmed orders that are paid (or cash on delivery) can be shipped. Update the payment first.' });
+    }
+    const had = order.shipment;
+    const save = async (shipment) => { order = await db.orders.update(order.id, { shipment }); };
+    let error = null;
+    try { await shiprocket.ship(order, save); }
+    catch (err) { if (!(err instanceof ShiprocketError)) console.error(err); error = err instanceof ShiprocketError ? err.message : 'Could not reach Shiprocket. Please try again.'; }
+    const sh = order.shipment;
+    if (sh.awb && !had.awb) {
+      order = await db.orders.update(order.id, { history: [...order.history, { at: nowIst(), status: order.status, note: `Sent to Shiprocket · ${sh.courierName || 'Courier'} AWB ${sh.awb}` }] });
+    }
+    const { token, ...out } = order;
+    res.status(error ? 502 : 200).json(error ? { error, order: out } : out);
+  }));
+
+  // Fetch the latest courier status from Shiprocket (in case a webhook was missed).
+  admin.post('/orders/:id/track', route(async (req, res) => {
+    const order = await db.orders.get(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (!order.shipment.awb) return res.status(400).json({ error: 'This order has no AWB yet.' });
+    let status;
+    try { status = await shiprocket.track(order.shipment.awb); }
+    catch (err) { return res.status(502).json({ error: err instanceof ShiprocketError ? err.message : 'Could not reach Shiprocket.' }); }
+    const { token, ...out } = await applyCourierStatus(order, status);
+    res.json(out);
   }));
 
   admin.get('/products', route(async (req, res) => res.json(await db.products.list())));
