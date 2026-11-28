@@ -31,6 +31,10 @@
   async function render() {
     const seq = ++renderSeq;
     const root = $('#cartRoot');
+    if (!Store.user) {
+      root.innerHTML = `<div class="empty-state" style="margin-bottom:100px"><h3>Sign in to use your cart</h3><p>Your cart is saved to your account. Sign in or create an account to add products.</p><a class="button button--dark" href="${esc(Store.Auth.loginUrl('cart.html'))}">Sign in</a></div>`;
+      return;
+    }
     if (!Cart.items().length) {
       root.innerHTML = `<div class="empty-state" style="margin-bottom:100px">${txt('h3', 'cart.emptyTitle')}${txt('p', 'cart.emptyText')}<a class="button button--dark" href="shop.html" data-site="pages.cart.emptyButton">${esc(T('cart.emptyButton'))}</a></div>`;
       return;

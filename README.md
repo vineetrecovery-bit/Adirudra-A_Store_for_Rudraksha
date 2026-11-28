@@ -78,7 +78,7 @@ There are two groups, and everyone signs in with **mobile number + password** at
 Passwords are stored as salted scrypt hashes in the `users` table. Sessions are signed httpOnly cookies (30 days for customers, 12 hours for the admin). Sign-in and sign-up are rate-limited.
 
 ### Customer flow
-1. Products load from `GET /api/products`. The cart (IDs + quantities only) is kept in the browser.
+1. Products load from `GET /api/products`. Adding to the cart or the wishlist needs a signed-in account: signed-out visitors are sent to `/login` and come back afterwards. The cart (IDs + quantities only) and the wishlist (`/wishlist`, product IDs) are kept in the browser, saved separately for each account, so the next person on the same browser doesn't see them.
 2. The cart and checkout call `POST /api/quote`, so every price, discount and fee is computed on the server.
 3. Checkout needs a signed-in account: signed-out visitors are sent to `/login` and come back afterwards, with their name and phone pre-filled. `POST /api/orders` validates the customer details, re-prices the cart, reserves stock and saves the order against the account. It returns an order ID and a private token. The confirmation page uses the token to show the order.
 4. Payment options:

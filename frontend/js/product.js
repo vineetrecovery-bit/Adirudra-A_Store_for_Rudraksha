@@ -1,7 +1,7 @@
 // Product detail page: product.html?id=AR-001
 (function () {
   'use strict';
-  const { byId, Cart, money, esc, $, visual, productCard, toast, whatsappLink } = Store;
+  const { byId, Cart, money, esc, $, visual, productCard, toast, whatsappLink, wishButton, requireSignIn } = Store;
   // Editable text from Admin > Website; data-site lets the live preview update it in place.
   const T = (key, vars) => (window.Site ? Site.t(`pages.${key}`, vars) : '');
   const txt = (tag, key, attrs = '') => `<${tag} data-site="pages.${key}"${attrs}>${esc(T(key))}</${tag}>`;
@@ -60,8 +60,9 @@
           </div>
           <button class="button button--dark" type="button" id="addBtn">Add to cart</button>
           <button class="button button--outline" type="button" id="buyBtn">Buy now</button>
+          ${wishButton(p, 'wish-btn--lg')}
         </div>
-        ${p.maxQty <= 3 ? `<p style="font-size:12px;color:var(--danger);margin:-10px 0 14px">Only ${p.maxQty} left in stock.</p>` : ''}` : `<div class="buy-row"><button class="button button--dark" type="button" disabled>Sold out</button><a class="button button--outline" href="${whatsappLink(`Namaste, please let me know when ${p.name} (${p.id}) is back in stock.`)}" target="_blank" rel="noopener">Notify me on WhatsApp</a></div>`}
+        ${p.maxQty <= 3 ? `<p style="font-size:12px;color:var(--danger);margin:-10px 0 14px">Only ${p.maxQty} left in stock.</p>` : ''}` : `<div class="buy-row"><button class="button button--dark" type="button" disabled>Sold out</button><a class="button button--outline" href="${whatsappLink(`Namaste, please let me know when ${p.name} (${p.id}) is back in stock.`)}" target="_blank" rel="noopener">Notify me on WhatsApp</a>${wishButton(p, 'wish-btn--lg')}</div>`}
         <p class="muted" id="inCartNote" style="font-size:12px;margin-bottom:20px"${inCart ? '' : ' hidden'}>${inCart} already in your cart.</p>
         <div class="assurance">
           <div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>${txt('span', p.certified ? 'product.certified' : 'product.inspected')}</div>
@@ -101,8 +102,9 @@
       return n > before;
     };
     $('#addBtn').addEventListener('click', () => {
+      if (!requireSignIn()) return;
       toast(addToCart() ? `${p.name} added to cart` : `You already have the maximum available of ${p.name}.`);
     });
-    $('#buyBtn').addEventListener('click', () => { addToCart(); location.href = 'checkout.html'; });
+    $('#buyBtn').addEventListener('click', () => { if (!requireSignIn()) return; addToCart(); location.href = 'checkout.html'; });
   });
 })();

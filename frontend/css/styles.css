@@ -180,6 +180,14 @@ h1, h2, h3 { line-height: 1.05; }
 .add-btn { min-height: 38px; padding: 8px 14px; border: 1px solid var(--walnut); background: none; color: var(--walnut); font-size: 12px; font-weight: 600; }
 .add-btn:hover { background: var(--walnut); color: var(--on-primary); }
 .add-btn.is-added { background: var(--walnut); color: var(--on-primary); }
+/* Wishlist heart (product cards, product page) */
+.product-card__actions { display: flex; align-items: center; gap: 8px; }
+.wish-btn { display: inline-grid; place-items: center; width: 38px; height: 38px; flex: none; padding: 0; border: 1px solid var(--line-strong); background: none; color: var(--walnut); transition: color .2s, border-color .2s, background-color .2s; }
+.wish-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; transition: transform .25s var(--ease-out, ease); }
+.wish-btn:hover { border-color: var(--bronze); color: var(--bronze); }
+.wish-btn[aria-pressed="true"] { border-color: var(--bronze); color: var(--bronze); }
+.wish-btn[aria-pressed="true"] svg { fill: currentColor; transform: scale(1.08); }
+.buy-row .wish-btn--lg { width: 48px; height: 48px; }
 
 /* Placeholder visual (from catalogue) */
 .placeholder { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; overflow: hidden; background: radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--gold) 30%, var(--line)) 0%, color-mix(in srgb, var(--line) 50%, var(--paper)) 43%, var(--media-bg) 100%); }
@@ -353,6 +361,8 @@ h1, h2, h3 { line-height: 1.05; }
   .site-footer__inner { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 560px) {
+  .icon-btn { width: 38px; } /* room for account, wishlist, cart and menu */
+  .header-actions { gap: 0; }
   .product-grid, .shop-layout .product-grid { grid-template-columns: 1fr; }
   .categories { grid-template-columns: 1fr 1fr; gap: 12px; }
   .category-tile { min-height: 150px; padding: 18px; }
@@ -382,7 +392,7 @@ h1, h2, h3 { line-height: 1.05; }
 }
 
 /* ---------- Corner rounding (Admin > Website > Colours & fonts) ---------- */
-.button, .add-btn, .input, .select, .textarea, .qty, .category-tile, .summary, .empty-state,
+.button, .add-btn, .wish-btn, .input, .select, .textarea, .qty, .category-tile, .summary, .empty-state,
 .pay-option, .order-box, .assurance, .pdp__visual, .cart-item__thumb, .mini-item__thumb, .toast { border-radius: var(--radius); }
 .product-card { border-radius: var(--radius); overflow: hidden; }
 .badge { border-radius: calc(var(--radius) / 2); }

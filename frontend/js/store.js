@@ -1,9 +1,11 @@
 // Shared storefront logic: API client, cart, header/footer, product cards, toast.
-// The cart (product IDs + quantities) lives in the browser; prices and totals always come from the server.
+// The cart and wishlist (product IDs) live in the browser, saved per signed-in account; guests have neither.
+// Prices and totals always come from the server.
 (function () {
   'use strict';
 
-  const CART_KEY = 'adirudra_cart';
+  const CART_KEY = 'adirudra_cart'; // + _<account id>
+  const WISH_KEY = 'adirudra_wishlist'; // + _<account id>
   const COUPON_KEY = 'adirudra_coupon';
   const ORDERS_KEY = 'adirudra_my_orders';
 
@@ -47,16 +49,27 @@
   let user = null; // signed-in account { id, name, phone, role } or null
   const byId = (id) => products.find((p) => p.id === id);
 
+  // Storage key for the signed-in account (null for guests, who can't have a cart or wishlist).
+  const accountKey = (base) => (user ? `${base}_${user.id}` : null);
+
+  // Guests are sent to sign in first, then back to this page.
+  function requireSignIn() {
+    if (user) return true;
+    location.href = Auth.loginUrl();
+    return false;
+  }
+
   // ---------- Cart ----------
   const Cart = {
     items() {
-      const raw = readJSON(CART_KEY, []);
+      const key = accountKey(CART_KEY); if (!key) return [];
+      const raw = readJSON(key, []);
       return Array.isArray(raw) ? raw.filter((i) => i && typeof i.id === 'string' && i.qty > 0 && (!products.length || byId(i.id))) : [];
     },
-    save(items) { writeJSON(CART_KEY, items.map(({ id, qty }) => ({ id, qty }))); updateCartCount(); },
+    save(items) { const key = accountKey(CART_KEY); if (key) writeJSON(key, items.map(({ id, qty }) => ({ id, qty }))); updateCartCount(); },
     qtyOf(id) { return (this.items().find((i) => i.id === id) || {}).qty || 0; },
     add(id, qty = 1) {
-      const p = byId(id); if (!p || !p.inStock) return 0;
+      const p = byId(id); if (!p || !p.inStock || !user) return 0;
       const items = this.items();
       const line = items.find((i) => i.id === id);
       const next = Math.min((line ? line.qty : 0) + qty, p.maxQty);
@@ -75,6 +88,38 @@
     clear() { this.save([]); setCoupon(''); },
     count() { return this.items().reduce((s, i) => s + i.qty, 0); }
   };
+
+  // ---------- Wishlist ----------
+  const Wishlist = {
+    ids() {
+      const key = accountKey(WISH_KEY); if (!key) return [];
+      const raw = readJSON(key, []);
+      return Array.isArray(raw) ? raw.filter((id) => typeof id === 'string' && (!products.length || byId(id))) : [];
+    },
+    has(id) { return this.ids().includes(id); },
+    // Adds or removes a product; returns true if it is now in the wishlist.
+    toggle(id) {
+      const key = accountKey(WISH_KEY); if (!key) return false;
+      const ids = this.ids();
+      const on = !ids.includes(id);
+      writeJSON(key, on ? [id, ...ids] : ids.filter((x) => x !== id));
+      updateWishCount(); syncWishButtons();
+      return on;
+    },
+    count() { return this.ids().length; }
+  };
+
+  // Carts from before sign-in was required were saved without an account; move one into the
+  // account that signs in on this browser, and never keep a guest cart.
+  function adoptGuestCart() {
+    const old = readJSON(CART_KEY, null);
+    if (old === null) return;
+    try { localStorage.removeItem(CART_KEY); } catch { /* ignore */ }
+    if (!user || !Array.isArray(old)) return;
+    const items = Cart.items();
+    for (const l of old) if (l && typeof l.id === 'string' && l.qty > 0 && !items.some((i) => i.id === l.id)) items.push({ id: l.id, qty: l.qty });
+    Cart.save(items);
+  }
 
   function getCoupon() { try { return localStorage.getItem(COUPON_KEY) || ''; } catch { return ''; } }
   function setCoupon(code) { try { code ? localStorage.setItem(COUPON_KEY, code) : localStorage.removeItem(COUPON_KEY); } catch { /* ignore */ } }
@@ -138,6 +183,12 @@
     return '';
   }
 
+  // Heart button that adds a product to (or removes it from) the wishlist.
+  function wishButton(p, extraClass = '') {
+    const on = Wishlist.has(p.id);
+    return `<button class="wish-btn${extraClass ? ` ${extraClass}` : ''}" type="button" data-wish="${esc(p.id)}" aria-pressed="${on}" aria-label="${on ? 'Remove' : 'Add'} ${esc(p.name)} ${on ? 'from' : 'to'} wishlist" title="${on ? 'In your wishlist' : 'Add to wishlist'}">${ICONS.heart}</button>`;
+  }
+
   // Card with a details panel that slides up on hover (or via the "+" button on touch screens).
   function productCard(p) {
     const url = `product.html?id=${encodeURIComponent(p.id)}`;
@@ -164,9 +215,9 @@
       </a>
       <div class="product-card__bottom">
         <span class="price">${money(p.price)}</span>
-        ${p.inStock
+        <span class="product-card__actions">${wishButton(p)}${p.inStock
           ? `<button class="add-btn" type="button" data-add="${esc(p.id)}" aria-label="Add ${esc(p.name)} to cart">Add to cart</button>`
-          : '<button class="add-btn" type="button" disabled>Sold out</button>'}
+          : '<button class="add-btn" type="button" disabled>Sold out</button>'}</span>
       </div>
     </article>`;
   }
@@ -176,6 +227,7 @@
     bag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1 12H6L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
     menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
     user: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z"/></svg>',
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>'
   };
 
@@ -195,6 +247,7 @@
         </nav>
         <div class="header-actions">
           <a class="icon-btn" href="${user ? 'account.html' : 'login.html'}" aria-label="${user ? `Account: ${esc(user.name)}` : 'Sign in'}" title="${user ? esc(user.name) : 'Sign in'}"${page === 'account' || page === 'login' ? ' aria-current="page"' : ''}>${ICONS.user}</a>
+          <a class="icon-btn" href="wishlist.html" aria-label="Wishlist"${page === 'wishlist' ? ' aria-current="page"' : ''}>${ICONS.heart}<span class="cart-count" id="wishCount"></span></a>
           <a class="icon-btn" href="cart.html" aria-label="Cart">${ICONS.bag}<span class="cart-count" id="cartCount"></span></a>
           <button class="icon-btn menu-toggle" type="button" id="menuToggle" aria-label="Menu" aria-expanded="false" aria-controls="primaryNav">${ICONS.menu}</button>
         </div>
@@ -213,7 +266,7 @@
       const open = $('#primaryNav').classList.toggle('is-open');
       e.currentTarget.setAttribute('aria-expanded', open);
     });
-    updateCartCount();
+    updateCartCount(); updateWishCount();
   }
 
   function renderFooter() {
@@ -244,6 +297,25 @@
     </footer>`;
   }
 
+  function updateWishCount() {
+    const el = $('#wishCount'); if (!el) return;
+    const n = Wishlist.count();
+    el.textContent = n ? String(n) : '';
+    el.closest('a').setAttribute('aria-label', n ? `Wishlist, ${n} item${n > 1 ? 's' : ''}` : 'Wishlist');
+  }
+
+  // Keep every heart for a product in step (cards, product page) after a change.
+  function syncWishButtons() {
+    const ids = new Set(Wishlist.ids());
+    $$('[data-wish]').forEach((b) => {
+      const on = ids.has(b.dataset.wish);
+      const name = (byId(b.dataset.wish) || {}).name || 'this product';
+      b.setAttribute('aria-pressed', String(on));
+      b.setAttribute('aria-label', `${on ? 'Remove' : 'Add'} ${name} ${on ? 'from' : 'to'} wishlist`);
+      b.title = on ? 'In your wishlist' : 'Add to wishlist';
+    });
+  }
+
   function updateCartCount() {
     const el = $('#cartCount'); if (!el) return;
     const n = Cart.count();
@@ -272,10 +344,12 @@
   }
 
   let toastTimer;
-  function toast(message, withCartLink = true) {
+  // `link`: true = "View cart", false = none, or { href, label }.
+  function toast(message, link = true) {
     let el = $('#toast');
     if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
-    el.innerHTML = `<span>${esc(message)}</span>${withCartLink ? '<a href="cart.html">View cart</a>' : ''}`;
+    const l = link === true ? { href: 'cart.html', label: 'View cart' } : link;
+    el.innerHTML = `<span>${esc(message)}</span>${l ? `<a href="${esc(l.href)}">${esc(l.label)}</a>` : ''}`;
     el.classList.add('is-visible');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('is-visible'), 3200);
   }
@@ -289,6 +363,7 @@
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-add]'); if (!btn) return;
     const p = byId(btn.dataset.add); if (!p) return;
+    if (!requireSignIn()) return;
     const before = Cart.qtyOf(p.id);
     if (Cart.add(p.id, 1) === before) { toast(`You already have the maximum available of ${p.name}.`); return; }
     btn.classList.add('is-added'); btn.textContent = 'Added ✓';
@@ -296,13 +371,29 @@
     toast(`${p.name} added to cart`);
   });
 
-  window.addEventListener('storage', (e) => { if (e.key === CART_KEY) updateCartCount(); });
+  // Global wishlist handler for any [data-wish] heart.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-wish]'); if (!btn) return;
+    e.preventDefault();
+    const p = byId(btn.dataset.wish); if (!p) return;
+    if (!requireSignIn()) return;
+    const on = Wishlist.toggle(p.id);
+    toast(on ? `${p.name} added to your wishlist` : `${p.name} removed from your wishlist`, { href: 'wishlist.html', label: 'View wishlist' });
+    document.dispatchEvent(new CustomEvent('wishlist:change', { detail: { id: p.id, on } }));
+  });
+
+  // Another tab changed the cart or wishlist.
+  window.addEventListener('storage', (e) => {
+    if (e.key === accountKey(CART_KEY)) updateCartCount();
+    if (e.key === accountKey(WISH_KEY)) { updateWishCount(); syncWishButtons(); }
+  });
 
   // Everything a page needs is loaded once; pages run their code via Store.onReady().
   const domReady = new Promise((r) => (document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', r, { once: true }) : r()));
   const me = api('/auth/me').then((r) => r.user).catch(() => null);
   const ready = Promise.all([api('/config'), api('/products'), me, domReady]).then(([cfg, list, u]) => {
     CONFIG = cfg; products = list; user = u;
+    adoptGuestCart();
     window.Store.CONFIG = cfg; window.Store.products = list; window.Store.user = u;
     renderHeader(); renderFooter();
     if (window.Site) Site.apply();
@@ -325,5 +416,5 @@
     safeNext
   };
 
-  window.Store = { api, ApiError, onReady, products, CONFIG, user, Auth, byId, Cart, MyOrders, quote, payWithRazorpay, getCoupon, setCoupon, money, esc, $, $$, visual, productCard, toast, whatsappLink, ICONS };
+  window.Store = { api, ApiError, onReady, products, CONFIG, user, Auth, requireSignIn, byId, Cart, Wishlist, wishButton, MyOrders, quote, payWithRazorpay, getCoupon, setCoupon, money, esc, $, $$, visual, productCard, toast, whatsappLink, ICONS };
 })();

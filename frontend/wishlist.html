@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your wishlist — Adirudra</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/motion.css">
+  <script src="js/motion.js"></script>
+</head>
+<body data-page="wishlist">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="site-header"></div>
+
+  <main id="main">
+    <div class="shell page-head">
+      <nav class="breadcrumb" aria-label="Breadcrumb"><a href="index.html">Home</a> / <span>Wishlist</span></nav>
+      <h1 class="page-title">Your wishlist</h1>
+    </div>
+    <div class="shell" id="wishRoot" style="padding-bottom:100px"></div>
+  </main>
+
+  <div id="site-footer"></div>
+  <script src="js/site.js"></script>
+  <script src="js/store.js"></script>
+  <script>
+    // Wishlist page: the signed-in customer's saved products.
+    Store.onReady(() => {
+      const { Wishlist, byId, productCard, esc, $, Auth } = Store;
+      const root = $('#wishRoot');
+      function render() {
+        if (!Store.user) {
+          root.innerHTML = `<div class="empty-state"><h3>Sign in to see your wishlist</h3><p>Save the beads you love to your account and come back to them any time.</p><a class="button button--dark" href="${esc(Auth.loginUrl('wishlist.html'))}">Sign in</a></div>`;
+          return;
+        }
+        const items = Wishlist.ids().map(byId).filter(Boolean);
+        root.innerHTML = items.length
+          ? `<p class="muted" style="margin-bottom:20px">${items.length} saved item${items.length > 1 ? 's' : ''}</p><div class="product-grid">${items.map(productCard).join('')}</div>`
+          : `<div class="empty-state"><h3>Your wishlist is empty</h3><p>Tap the heart on any product to save it here.</p><a class="button button--dark" href="shop.html">Browse the collection</a></div>`;
+      }
+      // Removing an item here takes it off the page.
+      document.addEventListener('wishlist:change', render);
+      window.addEventListener('storage', render);
+      render();
+    });
+  </script>
+</body>
+</html>
