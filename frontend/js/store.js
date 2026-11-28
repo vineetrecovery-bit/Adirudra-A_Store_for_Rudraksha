@@ -199,14 +199,14 @@
           <button class="icon-btn menu-toggle" type="button" id="menuToggle" aria-label="Menu" aria-expanded="false" aria-controls="primaryNav">${ICONS.menu}</button>
         </div>
       </div>
-      <div class="search-bar" id="searchBar">
+      ${page === 'home' ? '' : `<div class="search-bar" id="searchBar">
         <form action="shop.html" role="search">
           <label class="search-bar__field">${ICONS.search}
             <input class="input" type="search" name="q" value="${page === 'shop' ? esc(new URLSearchParams(location.search).get('q') || '') : ''}" placeholder="Search by mukhi, origin, mala, bracelet…" data-site-placeholder="nav.searchPlaceholder" aria-label="Search products">
           </label>
           <button class="button button--dark" type="submit">Search</button>
         </form>
-      </div>
+      </div>`}
     </header>`;
 
     $('#menuToggle').addEventListener('click', (e) => {

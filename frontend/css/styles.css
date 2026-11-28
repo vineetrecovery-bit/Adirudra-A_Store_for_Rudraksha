@@ -94,6 +94,7 @@ h1, h2, h3 { line-height: 1.05; }
 .menu-toggle { display: none; }
 
 /* Search bar: always shown as a strip under the header row */
+:root:has(body[data-page="home"]) { --search-h: 0px; } /* no search bar on the home page */
 .search-bar { border-top: 1px solid var(--line); background: var(--surface); }
 .search-bar form { max-width: 1480px; height: var(--search-h); margin: auto; padding: 0 var(--gutter); display: flex; align-items: center; gap: 10px; }
 .search-bar__field { position: relative; flex: 1; min-width: 0; }
@@ -332,6 +333,7 @@ h1, h2, h3 { line-height: 1.05; }
 }
 @media (max-width: 860px) {
   :root { --header-h: 64px; --search-h: 56px; }
+  :root:has(body[data-page="home"]) { --search-h: 0px; }
   .menu-toggle { display: inline-flex; }
   .primary-nav { display: none; position: absolute; top: var(--header-h); left: 0; right: 0; flex-direction: column; align-items: stretch; gap: 0; background: var(--paper); border-bottom: 1px solid var(--line); padding: 6px var(--gutter) 14px; }
   .primary-nav.is-open { display: flex; }
