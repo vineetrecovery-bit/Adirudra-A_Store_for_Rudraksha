@@ -202,7 +202,7 @@
             <circle class="intro__ripple" r="42"/>
           </g>
         </svg>
-        <p class="intro__tag">Born of Shiva&rsquo;s tears</p>
+        <p class="intro__tag">Born from Shiva&rsquo;s tears</p>
         <div class="intro__word" aria-hidden="true">${'ADIRUDRA'.split('').map((c, n) => `<span style="--i:${n}">${c}</span>`).join('')}</div>
       </div>
       <span class="intro__skip">Click to skip</span>`;
