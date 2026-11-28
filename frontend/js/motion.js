@@ -338,7 +338,7 @@
   function measure(grid) {
     const stage = grid.querySelector(':scope > .pcols');
     if (!stage) return;
-    const header = parseFloat(getComputedStyle(html).getPropertyValue('--header-h')) || 0;
+    const header = document.querySelector('.site-header')?.offsetHeight || 0; // header row + search bar
     const stageH = Math.max(320, window.innerHeight - header);
     stage.style.height = `${stageH}px`;
     stage.style.top = `${header}px`;

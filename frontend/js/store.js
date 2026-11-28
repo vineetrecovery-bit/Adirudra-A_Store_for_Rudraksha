@@ -194,15 +194,16 @@
           ${link('index.html#authenticity', 'Authenticity', 'auth', 'authenticity')}
         </nav>
         <div class="header-actions">
-          <button class="icon-btn" type="button" id="searchToggle" aria-label="Search" aria-expanded="false" aria-controls="searchBar">${ICONS.search}</button>
           <a class="icon-btn" href="${user ? 'account.html' : 'login.html'}" aria-label="${user ? `Account: ${esc(user.name)}` : 'Sign in'}" title="${user ? esc(user.name) : 'Sign in'}"${page === 'account' || page === 'login' ? ' aria-current="page"' : ''}>${ICONS.user}</a>
           <a class="icon-btn" href="cart.html" aria-label="Cart">${ICONS.bag}<span class="cart-count" id="cartCount"></span></a>
           <button class="icon-btn menu-toggle" type="button" id="menuToggle" aria-label="Menu" aria-expanded="false" aria-controls="primaryNav">${ICONS.menu}</button>
         </div>
       </div>
-      <div class="search-bar" id="searchBar" hidden>
+      <div class="search-bar" id="searchBar">
         <form action="shop.html" role="search">
-          <input class="input" type="search" name="q" placeholder="Search by mukhi, origin, mala, bracelet…" data-site-placeholder="nav.searchPlaceholder" aria-label="Search products">
+          <label class="search-bar__field">${ICONS.search}
+            <input class="input" type="search" name="q" value="${page === 'shop' ? esc(new URLSearchParams(location.search).get('q') || '') : ''}" placeholder="Search by mukhi, origin, mala, bracelet…" data-site-placeholder="nav.searchPlaceholder" aria-label="Search products">
+          </label>
           <button class="button button--dark" type="submit">Search</button>
         </form>
       </div>
@@ -211,11 +212,6 @@
     $('#menuToggle').addEventListener('click', (e) => {
       const open = $('#primaryNav').classList.toggle('is-open');
       e.currentTarget.setAttribute('aria-expanded', open);
-    });
-    $('#searchToggle').addEventListener('click', (e) => {
-      const bar = $('#searchBar'); bar.hidden = !bar.hidden;
-      e.currentTarget.setAttribute('aria-expanded', !bar.hidden);
-      if (!bar.hidden) $('input', bar).focus();
     });
     updateCartCount();
   }
