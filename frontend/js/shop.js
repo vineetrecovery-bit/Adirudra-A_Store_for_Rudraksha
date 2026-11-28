@@ -16,7 +16,7 @@
     rarity: params.getAll('rarity'),
     min: params.get('min') || '',
     max: params.get('max') || '',
-    sort: params.get('sort') || 'featured'
+    sort: params.get('sort') || ''
   };
 
   // Highlight the matching nav item when arriving from "Malas" / "Bracelets".
@@ -32,6 +32,29 @@
       const n = products.filter((p) => p[key] === v).length;
       return `<label class="check"><input type="checkbox" data-key="${key}" value="${esc(v)}"${state[key].includes(v) ? ' checked' : ''}> ${esc(v)} <em>${n}</em></label>`;
     }).join('');
+  }
+
+  // Filters shown, their order and headings come from Admin > Website > Shop page.
+  // Switching a filter off only hides its controls: links such as the "Malas" menu item (?type=Mala) still work.
+  const FILTER_IDS = ['search', 'type', 'origin', 'rarity', 'price'];
+  const filterOptions = () => {
+    const list = window.Site && Site.data && Site.data.pages.shop.filters;
+    return Array.isArray(list) ? list.filter((f) => FILTER_IDS.includes(f.id)) : FILTER_IDS.map((id) => ({ id, enabled: true }));
+  };
+
+  function renderFilters() {
+    const aside = $('#filters');
+    const opts = filterOptions();
+    for (const f of opts) {
+      const el = $(`[data-filter="${f.id}"]`, aside);
+      if (!el) continue;
+      el.hidden = !f.enabled;
+      if (f.label) $('[data-filter-label]', el).textContent = f.label;
+      aside.insertBefore(el, $('#reset'));
+    }
+    const any = opts.some((f) => f.enabled);
+    $('.shop-layout').classList.toggle('no-filters', !any);
+    $('#filterToggle').hidden = !any;
   }
 
   function matches(p) {
@@ -52,8 +75,26 @@
     'price-asc': (a, b) => a.price - b.price,
     'price-desc': (a, b) => b.price - a.price,
     mukhi: (a, b) => a.mukhi - b.mukhi,
-    name: (a, b) => a.name.localeCompare(b.name)
+    'mukhi-desc': (a, b) => b.mukhi - a.mukhi,
+    name: (a, b) => a.name.localeCompare(b.name),
+    'name-desc': (a, b) => b.name.localeCompare(a.name),
+    rarity: (a, b) => (RARITY_ORDER.indexOf(b.rarity) - RARITY_ORDER.indexOf(a.rarity)) || (b.featured - a.featured),
+    newest: (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || b.id.localeCompare(a.id, undefined, { numeric: true })
   };
+
+  // Sort choices shown, their names and order come from Admin > Website > Shop page.
+  // The first one shown is the default; a link with a sort that's switched off falls back to it.
+  const sortOptions = () => {
+    const list = ((window.Site && Site.data && Site.data.pages.shop.sort) || []).filter((o) => o.enabled && sorters[o.id]);
+    return list.length ? list : [{ id: 'featured', label: 'Sort: Featured' }];
+  };
+  const defaultSort = () => sortOptions()[0].id;
+
+  function renderSort() {
+    const opts = sortOptions();
+    if (!opts.some((o) => o.id === state.sort)) state.sort = opts[0].id;
+    $('#sort').innerHTML = opts.map((o) => `<option value="${esc(o.id)}"${o.id === state.sort ? ' selected' : ''}>${esc(o.label)}</option>`).join('');
+  }
 
   function syncUrl() {
     const p = new URLSearchParams();
@@ -61,7 +102,7 @@
     ['type', 'origin', 'rarity'].forEach((k) => state[k].forEach((v) => p.append(k, v)));
     if (state.min) p.set('min', state.min);
     if (state.max) p.set('max', state.max);
-    if (state.sort !== 'featured') p.set('sort', state.sort);
+    if (state.sort !== defaultSort()) p.set('sort', state.sort);
     const qs = p.toString();
     history.replaceState(null, '', qs ? `?${qs}` : location.pathname);
   }
@@ -93,7 +134,11 @@
     checkboxes('#fType', 'type', unique('type'));
     checkboxes('#fOrigin', 'origin', unique('origin'));
     checkboxes('#fRarity', 'rarity', unique('rarity', RARITY_ORDER));
-    $('#q').value = state.q; $('#minPrice').value = state.min; $('#maxPrice').value = state.max; $('#sort').value = state.sort;
+    $('#q').value = state.q; $('#minPrice').value = state.min; $('#maxPrice').value = state.max;
+    renderSort();
+    renderFilters();
+    // Admin live preview: sort and filter names and choices update as they're edited.
+    window.addEventListener('site:update', () => { renderSort(); renderFilters(); render(); });
 
     $('#filters').addEventListener('change', (e) => {
       const c = e.target; if (c.type !== 'checkbox') return;

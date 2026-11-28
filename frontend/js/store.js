@@ -159,7 +159,7 @@
         currency: razorpay.currency || 'INR',
         name: 'Adirudra',
         description: `Order ${orderId}`,
-        image: new URL('assets/logo.svg', location.href).href,
+        image: new URL('assets/logo.png', location.href).href,
         prefill: { name: customer.name, email: customer.email, contact: customer.phone },
         theme: { color: '#3a2b22' },
         handler: (resp) => api(`/orders/${encodeURIComponent(orderId)}/pay`, { method: 'POST', body: { token, ...resp } }).then(() => resolve('paid'), reject),
@@ -237,7 +237,7 @@
     const link = (href, label, key, path) => `<a href="${href}"${page === key ? ' aria-current="page"' : ''} data-site="nav.${path}" data-site-hide-empty>${label}</a>`;
     mount.outerHTML = `<header class="site-header">
       <div class="site-header__inner">
-        <a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="40" height="40" data-site-src="brand.logo"><span data-site="brand.name">ADIRUDRA</span></a>
+        <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="40" height="40" data-site-src="brand.logo"><span data-site="brand.name">ADIRUDRA</span></a>
         <nav class="primary-nav" id="primaryNav" aria-label="Main">
           ${link('index.html', 'Home', 'home', 'home')}
           ${link('shop.html', 'Shop all', 'shop', 'shop')}
@@ -274,7 +274,7 @@
     mount.outerHTML = `<footer class="site-footer">
       <div class="shell site-footer__inner">
         <div>
-          <a class="brand" href="index.html"><img src="assets/logo.svg" alt="" width="40" height="40" data-site-src="brand.logo"><span data-site="brand.name">ADIRUDRA</span></a>
+          <a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="40" height="40" data-site-src="brand.logo"><span data-site="brand.name">ADIRUDRA</span></a>
           <p data-site="footer.about"></p>
         </div>
         <div><h3 data-site="footer.shopTitle">Shop</h3><ul>

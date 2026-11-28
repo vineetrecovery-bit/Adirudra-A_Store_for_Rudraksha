@@ -229,6 +229,9 @@ h1, h2, h3 { line-height: 1.05; }
 .toolbar .select { width: auto; min-width: 190px; }
 .filter-toggle { display: none; }
 .shop-layout .product-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Every filter switched off in Admin > Website: products use the full width. */
+.shop-layout.no-filters { grid-template-columns: minmax(0, 1fr); }
+.shop-layout.no-filters .filters, .shop-layout.no-filters .filter-toggle { display: none !important; }
 .empty-state { padding: 65px 20px; text-align: center; border: 1px solid var(--line); background: var(--surface); grid-column: 1 / -1; }
 .empty-state h3 { font-family: var(--serif); font-size: 35px; margin-bottom: 10px; }
 .empty-state p { color: var(--muted); margin-bottom: 23px; }

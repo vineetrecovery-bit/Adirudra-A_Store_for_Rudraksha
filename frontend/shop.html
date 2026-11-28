@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Shop Rudraksha — Adirudra</title>
-  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -24,30 +25,31 @@
     </div>
 
     <div class="shell shop-layout">
+      <!-- Which filters show, their order and headings come from Admin > Website > Shop page (js/shop.js). -->
       <aside class="filters" id="filters" aria-label="Filters">
-        <div class="field">
-          <label for="q">Search</label>
+        <div class="field" data-filter="search">
+          <label for="q" data-filter-label>Search</label>
           <input class="input" id="q" type="search" placeholder="Mukhi, origin, keyword…" data-site-placeholder="pages.shop.searchPlaceholder">
         </div>
-        <div class="filter-group"><h3>Type</h3><div id="fType"></div></div>
-        <div class="filter-group"><h3>Origin</h3><div id="fOrigin"></div></div>
-        <div class="filter-group"><h3>Rarity</h3><div id="fRarity"></div></div>
-        <div class="filter-group">
-          <h3>Price (₹)</h3>
+        <div class="filter-group" data-filter="type"><h3 data-filter-label>Type</h3><div id="fType"></div></div>
+        <div class="filter-group" data-filter="origin"><h3 data-filter-label>Origin</h3><div id="fOrigin"></div></div>
+        <div class="filter-group" data-filter="rarity"><h3 data-filter-label>Rarity</h3><div id="fRarity"></div></div>
+        <div class="filter-group" data-filter="price">
+          <h3 data-filter-label>Price (₹)</h3>
           <div class="range-row">
             <input class="input" id="minPrice" type="number" min="0" inputmode="numeric" placeholder="Min" aria-label="Minimum price">
             <span>–</span>
             <input class="input" id="maxPrice" type="number" min="0" inputmode="numeric" placeholder="Max" aria-label="Maximum price">
           </div>
         </div>
-        <button class="text-link" type="button" id="reset" style="align-self:flex-start">Clear all filters</button>
+        <button class="text-link" type="button" id="reset" style="align-self:flex-start" data-site="pages.shop.clearFiltersLabel">Clear all filters</button>
       </aside>
 
       <section aria-label="Products">
         <div class="toolbar">
           <p class="result-count" id="count" aria-live="polite"></p>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <button class="button button--outline filter-toggle" type="button" id="filterToggle" aria-expanded="false" aria-controls="filters" style="min-height:46px">Filters</button>
+            <button class="button button--outline filter-toggle" type="button" id="filterToggle" aria-expanded="false" aria-controls="filters" style="min-height:46px" data-site="pages.shop.filtersButton">Filters</button>
             <select class="select" id="sort" aria-label="Sort products">
               <option value="featured">Sort: Featured</option>
               <option value="price-asc">Price: low to high</option>

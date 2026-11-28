@@ -26,12 +26,12 @@ const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-
 
 // Fields the storefront is allowed to see.
 // `image` is the first photo (used on product cards); `media` is every photo and video in order.
-const publicProduct = ({ id, slug, name, category, type, origin, mukhi, size, weight, price, rarity, featured, certified, verification, stock, media, description, keywords }) => ({
+const publicProduct = ({ id, slug, name, category, type, origin, mukhi, size, weight, price, rarity, featured, certified, verification, stock, media, description, keywords, createdAt }) => ({
   id, slug, name, category, type, origin, mukhi, size, weight, price, rarity, featured, certified, verification,
   inStock: stock > 0, maxQty: Math.min(stock, config.shop.maxQtyPerItem),
   image: (media.find((m) => m.type === 'image') || {}).url || '',
   media: media.map(({ type, url, mime }) => ({ type, url, mime })),
-  description, keywords
+  description, keywords, createdAt
 });
 
 // Parcel weight and size for the courier: item weights + packaging, in the largest item's box.

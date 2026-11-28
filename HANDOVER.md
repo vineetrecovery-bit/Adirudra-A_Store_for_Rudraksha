@@ -68,7 +68,7 @@ frontend/
   js/{shop,product,cart,checkout,account,login}.js   Per-page logic
   js/admin.js, admin-settings.js, admin-site.js      Admin panel (orders/products/customers, settings, website editor)
   css/styles.css, motion.css, admin.css
-  assets/                 logo.svg, hero-rudraksha.jpg (site images are part of the code, not uploads)
+  assets/                 logo.png (brand mark, transparent), logo-full.png, favicon.png, apple-touch-icon.png, logo-source.jpg (original artwork), hero-rudraksha.jpg (site images are part of the code, not uploads)
 test/store.test.js        API + pricing + auth + Shiprocket (mocked fetch) tests, using the JSON driver in a temp dir
 ```
 
@@ -149,6 +149,7 @@ orders.list/listByUser/get/usesProduct/countByUser/create/update
 - **The cart and wishlist live in localStorage, keyed per account** (`adirudra_cart_<userId>`, `adirudra_wishlist_<userId>`). Guests have neither: adding an item sends them to `/login?…` and brings them back afterwards.
 - **Editable text:** elements marked `data-site="hero.title"`, `data-site-href`, `data-site-bg` and `data-list="faq.items"` are filled by `site.js` from `window.SITE`. Placeholders `{freeShippingOver}`, `{shippingFee}` and `{codFee}` (plus `{name}`, `{email}`, `{phone}` and `{total}` on the order page) are substituted. **New editable copy must be added to `DEFAULTS` in `backend/site.js` (validation is shape-based against DEFAULTS), to the admin editor in `admin-site.js`, and to the HTML with a `data-site` attribute.**
 - Theme: 10 base colours become CSS variables, and other shades are blended from them. Fonts come from the allowlists `HEADING_FONTS` / `BODY_FONTS`. Links must be safe (relative, `#`, or https).
+- Shop sort menu: `pages.shop.sort` in the site settings is a list of `{id, label, enabled}` over the fixed ids in `SORT_OPTIONS` (`backend/site.js`), matching `sorters` in `frontend/js/shop.js`. Validation drops unknown ids and appends missing ones, and at least one must stay enabled. The first enabled option is the default sort. To add a sort, add it to both places. Shop filters work the same way: `pages.shop.filters` over `FILTER_OPTIONS` (search, type, origin, rarity, price), applied in `renderFilters()` in `shop.js` through `data-filter` attributes in `shop.html`. Zero enabled filters is allowed. Hiding a filter only hides its UI; URL params still apply.
 - Admin live preview loads storefront pages with `?preview=1`. Motion is disabled there. `?intro` on any page replays the opening intro.
 - Always escape HTML with `esc()` when interpolating into templates.
 

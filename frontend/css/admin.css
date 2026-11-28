@@ -119,6 +119,10 @@ body.is-editing-site .admin-main { max-width: none; width: 100%; margin: 0; padd
 .ed-sections { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); }
 .ed-sections li { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .ed-sections li:last-child { border-bottom: 0; }
+.ed-sort li { gap: 10px; align-items: flex-start; padding: 10px; }
+.ed-sort li > input[type="checkbox"] { flex: none; margin-top: 12px; }
+.ed-sort .field { flex: 1; min-width: 0; margin: 0; }
+.ed-sort .ed-order { margin-top: 6px; }
 .ed-order { display: inline-flex; gap: 4px; }
 .ed-icon { width: 30px; height: 30px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 14px; line-height: 1; }
 .ed-icon:hover:not([disabled]) { border-color: var(--walnut); }

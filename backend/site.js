@@ -8,6 +8,27 @@ export const HEADING_FONTS = ['Cormorant Garamond', 'Playfair Display', 'EB Gara
 export const BODY_FONTS = ['Inter', 'DM Sans', 'Lato', 'Mulish', 'Nunito Sans', 'Poppins', 'Source Sans 3', 'Work Sans'];
 export const TRUST_ICONS = ['shield', 'truck', 'return', 'card', 'star', 'leaf', 'gift', 'phone'];
 export const SECTION_IDS = ['trust', 'categories', 'featured', 'authenticity', 'faq'];
+// Sort choices on the shop page. The ids are fixed (the shop knows how to sort by each one);
+// the admin picks which ones show, in what order, and what they're called. The first one shown is the default.
+export const SORT_OPTIONS = [
+  { id: 'featured', label: 'Sort: Featured', enabled: true },
+  { id: 'price-asc', label: 'Price: low to high', enabled: true },
+  { id: 'price-desc', label: 'Price: high to low', enabled: true },
+  { id: 'mukhi', label: 'Mukhi: low to high', enabled: true },
+  { id: 'name', label: 'Name: A–Z', enabled: true },
+  { id: 'newest', label: 'Newest first', enabled: false },
+  { id: 'mukhi-desc', label: 'Mukhi: high to low', enabled: false },
+  { id: 'rarity', label: 'Rarest first', enabled: false },
+  { id: 'name-desc', label: 'Name: Z–A', enabled: false }
+];
+// Filters in the shop page's side column, same idea: fixed ids, admin picks which show, the order and the headings.
+export const FILTER_OPTIONS = [
+  { id: 'search', label: 'Search', enabled: true },
+  { id: 'type', label: 'Type', enabled: true },
+  { id: 'origin', label: 'Origin', enabled: true },
+  { id: 'rarity', label: 'Rarity', enabled: true },
+  { id: 'price', label: 'Price (₹)', enabled: true }
+];
 
 export const DEFAULTS = {
   theme: {
@@ -18,7 +39,7 @@ export const DEFAULTS = {
     fonts: { heading: 'Cormorant Garamond', body: 'Inter' },
     radius: 0
   },
-  brand: { name: 'ADIRUDRA', logo: 'assets/logo.svg' },
+  brand: { name: 'ADIRUDRA', logo: 'assets/logo.png' },
   announcement: { enabled: false, text: 'Free shipping on orders over {freeShippingOver} · Every bead lab certified', link: 'shop.html' },
   nav: { home: 'Home', shop: 'Shop all', malas: 'Malas', bracelets: 'Bracelets', authenticity: 'Authenticity', searchPlaceholder: 'Search by mukhi, origin, mala, bracelet…' },
   seo: {
@@ -83,7 +104,10 @@ export const DEFAULTS = {
   pages: {
     shop: {
       title: 'The collection', intro: 'Authentic Rudraksha beads, malas, bracelets and pendants — every piece certified.',
-      searchPlaceholder: 'Mukhi, origin, keyword…', emptyTitle: 'No products match', emptyText: 'Try removing a filter or searching for something else.'
+      searchPlaceholder: 'Mukhi, origin, keyword…', emptyTitle: 'No products match', emptyText: 'Try removing a filter or searching for something else.',
+      filtersButton: 'Filters', clearFiltersLabel: 'Clear all filters',
+      sort: SORT_OPTIONS,
+      filters: FILTER_OPTIONS
     },
     product: {
       relatedKicker: 'You may also like', relatedTitle: 'Related pieces', taxNote: 'Inclusive of all taxes',
@@ -133,6 +157,26 @@ class SiteError extends Error {
   constructor(field, message) { super(message); this.field = field; this.status = 400; }
 }
 
+// Shop sort options and filters: known ids only, each once. Options missing from a saved list (e.g. added
+// in a later version of the store) are appended with their defaults, so older saves stay valid.
+function cleanChoices(def, input, keyPath, { what, minEnabled }) {
+  if (!Array.isArray(input)) throw new SiteError(keyPath, 'Expected a list.');
+  const seen = new Set();
+  const out = [];
+  input.forEach((s, i) => {
+    const d = def.find((x) => x.id === s?.id);
+    if (!d || seen.has(d.id)) return;
+    seen.add(d.id);
+    const label = typeof s.label === 'string' ? s.label.trim() : '';
+    if (!label) throw new SiteError(`${keyPath}.${i}.label`, `Give this ${what} a name.`);
+    if (label.length > 60) throw new SiteError(`${keyPath}.${i}.label`, 'Keep this under 60 characters.');
+    out.push({ id: d.id, label, enabled: Boolean(s.enabled) });
+  });
+  for (const d of def) if (!seen.has(d.id)) out.push(structuredClone(d));
+  if (out.filter((s) => s.enabled).length < minEnabled) throw new SiteError(keyPath, `Keep at least one ${what} switched on.`);
+  return out;
+}
+
 function clean(def, input, keyPath) {
   const key = keyPath.split('.').pop();
 
@@ -143,6 +187,8 @@ function clean(def, input, keyPath) {
       if (ids.length !== SECTION_IDS.length || SECTION_IDS.some((id) => !ids.includes(id))) throw new SiteError(keyPath, 'Sections list is incomplete.');
       return input.map((s) => ({ id: s.id, enabled: Boolean(s.enabled) }));
     }
+    if (keyPath === 'pages.shop.sort') return cleanChoices(def, input, keyPath, { what: 'sort option', minEnabled: 1 });
+    if (keyPath === 'pages.shop.filters') return cleanChoices(def, input, keyPath, { what: 'filter', minEnabled: 0 });
     const [min, max] = LIST_LIMITS[keyPath] || [0, 20];
     if (!Array.isArray(input)) throw new SiteError(keyPath, 'Expected a list.');
     if (input.length < min || input.length > max) throw new SiteError(keyPath, `Add between ${min} and ${max} items.`);
@@ -182,9 +228,15 @@ function clean(def, input, keyPath) {
   return v;
 }
 
+// The original line-drawing logo (assets/logo.svg) was replaced by the brand logo; saved settings
+// that still point at it are moved to the new file.
+const RETIRED_LOGOS = ['assets/logo.svg', '/assets/logo.svg'];
+
 export function validateSite(input) {
   try {
-    return { value: clean(DEFAULTS, input, '') };
+    const value = clean(DEFAULTS, input, '');
+    if (RETIRED_LOGOS.includes(value.brand.logo)) value.brand.logo = DEFAULTS.brand.logo;
+    return { value };
   } catch (err) {
     if (err instanceof SiteError) return { error: err.message, field: err.field };
     throw err;

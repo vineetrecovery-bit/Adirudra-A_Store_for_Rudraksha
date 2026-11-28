@@ -347,6 +347,57 @@ test('site: page text, menu labels and link targets are editable and validated',
   await call('/api/admin/site/reset', { method: 'POST', cookie });
 });
 
+test('site: shop sort options can be shown, hidden, renamed and reordered', async () => {
+  const cookie = await adminCookie();
+  const site = structuredClone(DEFAULTS);
+  const byId = (list, id) => list.find((o) => o.id === id);
+  site.pages.shop.sort = [
+    { id: 'newest', label: '  New arrivals ', enabled: true },
+    { id: 'price-asc', label: 'Cheapest first', enabled: true },
+    { id: 'featured', label: 'Featured', enabled: false },
+    { id: 'bogus', label: 'Nope', enabled: true }
+  ];
+  const r = await call('/api/admin/site', { method: 'PUT', body: site, cookie });
+  assert.equal(r.status, 200);
+  const sort = r.body.site.pages.shop.sort;
+  assert.deepEqual(sort.slice(0, 3).map((o) => o.id), ['newest', 'price-asc', 'featured']);
+  assert.equal(sort[0].label, 'New arrivals');
+  assert.equal(byId(sort, 'bogus'), undefined);
+  // Options left out are kept (with their defaults), so nothing is lost.
+  assert.equal(sort.length, DEFAULTS.pages.shop.sort.length);
+  assert.equal(byId(sort, 'name').enabled, true);
+  assert.match(await (await fetch(base + '/shop.html')).text(), /"New arrivals"/);
+  assert.equal(typeof (await call('/api/products')).body[0].createdAt, 'string');
+
+  const none = structuredClone(site); none.pages.shop.sort = DEFAULTS.pages.shop.sort.map((o) => ({ ...o, enabled: false }));
+  assert.equal((await call('/api/admin/site', { method: 'PUT', body: none, cookie })).body.field, 'pages.shop.sort');
+  const blank = structuredClone(site); blank.pages.shop.sort = [{ id: 'name', label: '  ', enabled: true }];
+  assert.equal((await call('/api/admin/site', { method: 'PUT', body: blank, cookie })).body.field, 'pages.shop.sort.0.label');
+  await call('/api/admin/site/reset', { method: 'POST', cookie });
+});
+
+test('site: shop filters can be hidden, renamed and reordered; old logo setting moves to the new logo', async () => {
+  const cookie = await adminCookie();
+  const site = structuredClone(DEFAULTS);
+  site.brand.logo = 'assets/logo.svg';
+  site.pages.shop.filters = [{ id: 'price', label: 'Budget', enabled: true }, { id: 'search', label: 'Find', enabled: false }];
+  const r = await call('/api/admin/site', { method: 'PUT', body: site, cookie });
+  assert.equal(r.status, 200);
+  const filters = r.body.site.pages.shop.filters;
+  assert.deepEqual(filters.map((f) => f.id), ['price', 'search', 'type', 'origin', 'rarity']);
+  assert.equal(filters[0].label, 'Budget');
+  assert.equal(filters[1].enabled, false);
+  assert.equal(r.body.site.brand.logo, 'assets/logo.png');
+
+  // Every filter may be switched off (the products then use the full width).
+  const none = structuredClone(site); none.pages.shop.filters = DEFAULTS.pages.shop.filters.map((f) => ({ ...f, enabled: false }));
+  assert.equal((await call('/api/admin/site', { method: 'PUT', body: none, cookie })).status, 200);
+  const blank = structuredClone(site); blank.pages.shop.filters = [{ id: 'type', label: '', enabled: true }];
+  assert.equal((await call('/api/admin/site', { method: 'PUT', body: blank, cookie })).body.field, 'pages.shop.filters.0.label');
+  assert.equal((await fetch(base + '/assets/logo.png')).status, 200);
+  await call('/api/admin/site/reset', { method: 'POST', cookie });
+});
+
 // ---------- Accounts ----------
 test('accounts: sign up with phone + password, sign in, sign out', async () => {
   const bad = await call('/api/auth/signup', { method: 'POST', body: { name: 'R', phone: '123', password: 'short' } });

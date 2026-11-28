@@ -132,7 +132,12 @@
     ] },
     { id: 'pageShop', title: 'Shop page', fields: [
       text('pages.shop.title', 'Heading'), area('pages.shop.intro', 'Intro'), text('pages.shop.searchPlaceholder', 'Search box hint'),
-      text('pages.shop.emptyTitle', 'No results: heading'), area('pages.shop.emptyText', 'No results: text', { rows: 2 })
+      text('pages.shop.emptyTitle', 'No results: heading'), area('pages.shop.emptyText', 'No results: text', { rows: 2 }),
+      { type: 'note', text: 'Sort menu: tick the choices customers can pick, rename them, and reorder them with the arrows. The first ticked choice is how the shop is sorted when it opens.' },
+      { type: 'choices', path: 'pages.shop.sort', names: () => SORT_NAMES, markDefault: true, what: 'sort option' },
+      { type: 'note', text: 'Filters (side column): tick the filters to show, rename their headings and reorder them. Untick them all to give the products the full width. Hidden filters still work in links such as the "Malas" menu item.' },
+      { type: 'choices', path: 'pages.shop.filters', names: () => FILTER_NAMES, what: 'filter' },
+      text('pages.shop.filtersButton', '"Filters" button (phones)'), text('pages.shop.clearFiltersLabel', '"Clear all filters" link')
     ] },
     { id: 'pageProduct', title: 'Product page', fields: [
       text('pages.product.taxNote', 'Note under the price'),
@@ -173,6 +178,14 @@
     { id: 'history', title: 'Version history', fields: [{ type: 'history' }] }
   ];
 
+  // What each shop sort option does, shown under its (renamable) name.
+  const SORT_NAMES = {
+    featured: 'Featured first, then rarest', newest: 'Most recently added first', 'price-asc': 'Price, lowest first', 'price-desc': 'Price, highest first',
+    mukhi: 'Mukhi, lowest first', 'mukhi-desc': 'Mukhi, highest first', rarity: 'Rarest first', name: 'Name, A to Z', 'name-desc': 'Name, Z to A'
+  };
+  const FILTER_NAMES = {
+    search: 'Search box', type: 'Type (bead, mala, bracelet, pendant)', origin: 'Origin (Nepal, Indonesia…)', rarity: 'Rarity', price: 'Price range (min–max)'
+  };
   const SECTION_NAMES = { trust: 'Trust badges', categories: 'Shop by category', featured: 'Featured products', authenticity: 'Authenticity', faq: 'FAQ' };
 
   // ---------- Field rendering ----------
@@ -212,6 +225,17 @@
           <label class="check"><input type="checkbox" data-section-toggle="${i}"${s.enabled ? ' checked' : ''}> ${esc(SECTION_NAMES[s.id])}</label>
           <span class="ed-order"><button type="button" class="ed-icon" data-section-move="${i}" data-dir="-1" aria-label="Move up"${i === 0 ? ' disabled' : ''}>↑</button><button type="button" class="ed-icon" data-section-move="${i}" data-dir="1" aria-label="Move down"${i === draft.sections.length - 1 ? ' disabled' : ''}>↓</button></span>
         </li>`).join('')}</ol><small class="ed-hint">The hero banner always comes first.</small>`;
+      // A fixed set of choices the admin can tick, rename and reorder (shop sort options, shop filters).
+      case 'choices': {
+        const list = get(draft, f.path);
+        const path = f.path;
+        const names = f.names();
+        return `<ol class="ed-sections ed-sort">${list.map((o, i) => `<li>
+          <input type="checkbox" data-path="${path}.${i}.enabled" data-kind="bool"${o.enabled ? ' checked' : ''} aria-label="Show this ${esc(f.what)}">
+          <div class="field ed-field"><input class="input" id="f-${path.replace(/\./g, '-')}-${i}" data-path="${path}.${i}.label" value="${esc(o.label)}" maxlength="60" aria-label="Name shown for: ${esc(names[o.id] || o.id)}"><small class="ed-hint">${esc(names[o.id] || o.id)}${f.markDefault && i === list.findIndex((x) => x.enabled) ? ' · default' : ''}</small><span class="field__error"></span></div>
+          <span class="ed-order"><button type="button" class="ed-icon" data-list-move="${path}" data-index="${i}" data-dir="-1" aria-label="Move up"${i === 0 ? ' disabled' : ''}>↑</button><button type="button" class="ed-icon" data-list-move="${path}" data-index="${i}" data-dir="1" aria-label="Move down"${i === list.length - 1 ? ' disabled' : ''}>↓</button></span>
+        </li>`).join('')}</ol>`;
+      }
       case 'list': {
         const items = get(draft, f.path);
         return `<div class="ed-list">${items.map((it, i) => `<div class="ed-item">
@@ -439,6 +463,7 @@
       if (e.target.dataset.sectionToggle !== undefined) { draft.sections[Number(e.target.dataset.sectionToggle)].enabled = e.target.checked; changed(); return; }
       // Selects and checkboxes fire change, not always input.
       if (e.target.matches('select, input[type=checkbox]')) onInput(e);
+      if (/^pages\.shop\.sort\.\d+\.enabled$/.test(e.target.dataset.path || '')) { changed({ rerender: true }); return; }
       // Keep a list item's heading in sync with its title (updated in place so focus isn't lost).
       const m = /^(.+)\.(\d+)\.(title|q)$/.exec(e.target.dataset.path || '');
       if (m) {
